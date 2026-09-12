@@ -104,6 +104,32 @@ kubectl apply -f "$HERE/fixtures/tenants.yaml"
 # real OIDC identity - at which point Capsule's mutating webhook sets the
 # tenant label and ownerReference itself, the same as it would for a
 # request arriving through capsule-proxy.
+#
+# That impersonated identity still needs RBAC of its own, though:
+# capsule-proxy forwards a tenant owner's own identity to kube-apiserver
+# rather than acting with its own elevated rights, so kube-apiserver
+# authorizes namespace creation against that owner's RBAC, same as any
+# other user. Capsule's chart doesn't ship a ClusterRole for this (it's
+# a real cluster admin's own decision how to grant it), so define the
+# minimal one directly - create-only on the cluster-scoped namespaces
+# resource - and bind each owner to it.
+kubectl apply -f - <<'EOF'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: e2e-namespace-creator
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["create"]
+EOF
+kubectl create clusterrolebinding tenant-a-owner-namespace-creator \
+  --clusterrole=e2e-namespace-creator --user=alice@tenant-a.example.com \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl create clusterrolebinding tenant-b-owner-namespace-creator \
+  --clusterrole=e2e-namespace-creator --user=bob@tenant-b.example.com \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl --as=alice@tenant-a.example.com create namespace tenant-a-dev
 kubectl --as=bob@tenant-b.example.com create namespace tenant-b-dev
 
