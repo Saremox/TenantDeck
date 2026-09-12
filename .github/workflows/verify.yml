@@ -171,10 +171,17 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Install kind, kubectl, helm
         run: |
-          curl -sSL -o /usr/local/bin/kind "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64"
-          chmod +x /usr/local/bin/kind
-          curl -sSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl"
-          chmod +x /usr/local/bin/kubectl
+          # $HOME/.local/bin, not /usr/local/bin: recent runner images don't
+          # let the runner user chmod +x a file it just wrote there
+          # ("Operation not permitted"), even though the write itself
+          # succeeds - $HOME is always writable, and GITHUB_PATH is the
+          # correct way to extend PATH for later steps either way.
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl -sSL -o "$HOME/.local/bin/kind" "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64"
+          chmod +x "$HOME/.local/bin/kind"
+          curl -sSL -o "$HOME/.local/bin/kubectl" "https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl"
+          chmod +x "$HOME/.local/bin/kubectl"
           GOBIN="$(go env GOPATH)/bin" go install helm.sh/helm/v3/cmd/helm@v3.19.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: make e2e
