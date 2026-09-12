@@ -3,13 +3,15 @@
 TenantDeck is a security-first, read-only customer dashboard for an existing
 Capsule multi-tenant Kubernetes platform. Tagline: *Your slice of Kubernetes.*
 
-**Status: Phase 1 (inspection and planning) done, no application code yet.**
-The full requirements live in [`docs/spec/`](docs/spec/README.md), split by
-topic from the original kickoff prompt — read that index before writing
-code; it is normative, this file is just the condensed, always-relevant
-summary. The dependency set is decided
-([`docs/implementation-plan.md`](docs/implementation-plan.md) ADRs) and the
-concrete route allowlist exists
+**Status: Phase 2 (vertical slice) done** — real OIDC login → server-side
+session → namespace list → UI, as working, tested code, not yet validated
+against a real Capsule Proxy/cluster (see `docs/implementation-plan.md`
+"Known blockers"). The full requirements live in
+[`docs/spec/`](docs/spec/README.md), split by topic from the original
+kickoff prompt — read that index before writing code; it is normative,
+this file is just the condensed, always-relevant summary. The dependency
+set is decided ([`docs/implementation-plan.md`](docs/implementation-plan.md)
+ADRs) and the concrete route allowlist exists
 ([`docs/route-allowlist.md`](docs/route-allowlist.md)) — implement against
 those rather than re-deciding them.
 
@@ -117,14 +119,25 @@ Full detail in the `tenantdeck-testing` skill; the durable rules:
 
 ## Commands
 
-Not yet defined — no build exists. Once implementation starts, this section
-must be replaced with the real, working commands (per the working agreement
-in [`docs/spec/01-working-agreement.md`](docs/spec/01-working-agreement.md)):
+Real and verified (2026-09-12) — see
+[`docs/local-development.md`](docs/local-development.md) for prerequisites,
+required env vars, and troubleshooting:
 
-- `make verify` — fast deterministic checks (fmt, vet, lint, typecheck, unit/integration tests, automated accessibility checks, Helm lint/template, chart schema validation).
-- `make e2e` — disposable full-stack E2E suite (kind + Capsule + mock OIDC + Valkey + built image/chart).
+- `make verify` — `gofmt` check, `go vet`, `go test -race` (Go packages
+  only — see the Makefile comment on why scoped, not bare `./...`), then
+  frontend typecheck + lint + `vitest run` (includes axe-core a11y checks)
+  + build. Helm lint/template/schema validation will be added here once
+  the chart exists (Phase 4) — not yet.
+- `make build` — frontend build, then `go build -o bin/tenantdeck
+  ./cmd/tenantdeck`.
+- `make run` — `go run ./cmd/tenantdeck` (needs env vars exported first).
+- `make e2e` — **not implemented yet.** This is the mandatory disposable
+  full-stack E2E suite (kind + Capsule + mock OIDC + Valkey + built image/
+  chart) from `docs/spec/07-mandatory-automated-testing.md`; it needs
+  Phase 4's chart and a container/Kubernetes-capable environment, neither
+  of which exist yet.
 
-CI must call these same commands, not a separate path.
+CI must call `make verify`/`make e2e`, not a separate path, once CI exists.
 
 ## Living docs to keep current
 

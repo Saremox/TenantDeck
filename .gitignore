@@ -20,12 +20,24 @@ profile.cov
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
+# Built binary (make build)
+/bin/
+
 # Go workspace file
 go.work
 go.work.sum
 
 # env file
 .env
+
+# Frontend: dependencies and build output are generated, never committed.
+# web/dist/.gitkeep is tracked on purpose - see web/embed.go - so a fresh
+# checkout's `go build` has something to embed before `npm run build` has
+# ever run.
+web/node_modules/
+web/dist/*
+!web/dist/.gitkeep
+web/*.tsbuildinfo
 
 # Editor/IDE
 # .idea/
