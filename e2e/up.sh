@@ -23,8 +23,28 @@ KUBECONFIG_PATH="$HERE/.kubeconfig"
 # cgroup v1 - see the Phase 4 "Known blockers" note above).
 NODE_IMAGE="${NODE_IMAGE:-kindest/node:v1.36.1}"
 CALICO_VERSION="${CALICO_VERSION:-v3.32.2}"
+CERT_MANAGER_VERSION="${CERT_MANAGER_VERSION:-v1.21.2}"
 CAPSULE_VERSION="${CAPSULE_VERSION:-0.14.5}"
 CAPSULE_PROXY_VERSION="${CAPSULE_PROXY_VERSION:-0.14.1}"
+
+# Retries a command a bounded number of times with a fixed delay - used
+# below only for the one known transient race (cert-manager's webhook
+# Deployment reports Available slightly before its TLS listener actually
+# accepts connections, so the very next admission-webhook-dependent
+# apply can fail once). Not a substitute for fixing a real failure.
+retry() {
+  local attempts="$1" delay="$2"
+  shift 2
+  local n=1
+  until "$@"; do
+    if [ "$n" -ge "$attempts" ]; then
+      return 1
+    fi
+    echo "    attempt $n/$attempts failed, retrying in ${delay}s..."
+    sleep "$delay"
+    n=$((n + 1))
+  done
+}
 
 echo "==> Creating kind cluster ($CLUSTER_NAME, node image $NODE_IMAGE)"
 kind create cluster --name "$CLUSTER_NAME" --config "$HERE/kind-config.yaml" --image "$NODE_IMAGE" --kubeconfig "$KUBECONFIG_PATH"
@@ -35,17 +55,23 @@ kubectl apply -f "https://raw.githubusercontent.com/projectcalico/calico/$CALICO
 kubectl -n kube-system rollout status daemonset/calico-node --timeout=180s
 kubectl -n kube-system rollout status deployment/calico-kube-controllers --timeout=180s
 
+echo "==> Installing cert-manager (the Capsule chart's webhook Certificate/Issuer need its CRDs)"
+kubectl apply -f "https://github.com/cert-manager/cert-manager/releases/download/$CERT_MANAGER_VERSION/cert-manager.yaml"
+kubectl -n cert-manager wait --for=condition=available --timeout=180s deployment --all
+
 echo "==> Installing Capsule operator + capsule-proxy (pinned per ADR-006)"
 helm repo add projectcapsule https://projectcapsule.github.io/charts >/dev/null
 helm repo update projectcapsule >/dev/null
-helm upgrade --install capsule projectcapsule/capsule \
+# cert-manager's Deployments reporting Available can still precede its
+# webhook's TLS listener actually accepting connections by a few seconds -
+# retry this one install rather than trust a fixed sleep to outlast it.
+retry 5 10 helm upgrade --install capsule projectcapsule/capsule \
   --version "$CAPSULE_VERSION" --namespace capsule-system --create-namespace --wait
 helm upgrade --install capsule-proxy projectcapsule/capsule-proxy \
   --version "$CAPSULE_PROXY_VERSION" --namespace capsule-system --wait
 
 echo "==> Installing Valkey (test infrastructure provisions its own store - docs/route-allowlist.md)"
-kubectl apply -n tenantdeck-e2e -f "$HERE/manifests/valkey.yaml" --validate=false 2>/dev/null || \
-  kubectl create namespace tenantdeck-e2e --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace tenantdeck-e2e --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -n tenantdeck-e2e -f "$HERE/manifests/valkey.yaml"
 kubectl -n tenantdeck-e2e rollout status deployment/valkey --timeout=120s
 
