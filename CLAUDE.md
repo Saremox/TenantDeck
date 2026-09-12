@@ -95,6 +95,13 @@ Full detail in the `tenantdeck-testing` skill; the durable rules:
 - **One test, one concern.** No 200-line tests covering several aspects —
   split them. The test name alone should say what's being verified; if it
   can't, add a 1-2 line comment above the test stating what it checks.
+- **Frontend has no coverage percentage** — by design, not by omission.
+  Named categories (API error mapping, session-expired handling, hostile-
+  content rendering, each required UI state) are mandatory instead; a
+  percentage over presentation code rewards the wrong thing.
+- **Accessibility is an automated gate, not a judgment call.** axe-core (or
+  equivalent) runs in `make verify`; zero serious/critical violations on
+  required views, narrowly justified exceptions only.
 
 ## Skills for this repo
 
@@ -108,7 +115,7 @@ Not yet defined — no build exists. Once implementation starts, this section
 must be replaced with the real, working commands (per the working agreement
 in [`docs/spec/01-working-agreement.md`](docs/spec/01-working-agreement.md)):
 
-- `make verify` — fast deterministic checks (fmt, vet, lint, typecheck, unit/integration tests, Helm lint/template, chart schema validation).
+- `make verify` — fast deterministic checks (fmt, vet, lint, typecheck, unit/integration tests, automated accessibility checks, Helm lint/template, chart schema validation).
 - `make e2e` — disposable full-stack E2E suite (kind + Capsule + mock OIDC + Valkey + built image/chart).
 
 CI must call these same commands, not a separate path.
@@ -119,3 +126,29 @@ CI must call these same commands, not a separate path.
 - [`docs/security-test-matrix.md`](docs/security-test-matrix.md) — requirements mapped to actual tests, with evidence.
 
 Update both whenever you complete work, not just at the end of a session.
+
+## Required docs not yet written
+
+These are mandated by
+[`docs/spec/09-documentation-and-threat-model.md`](docs/spec/09-documentation-and-threat-model.md)
+and currently exist only as skeletons stating what must go in them —
+replace each with real content at the point in the execution sequence
+(`docs/spec/10-process-and-definition-of-done.md`) where it stops being
+speculative:
+
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting policy.
+- [`docs/architecture.md`](docs/architecture.md) — the system as actually
+  built, not a restatement of the spec.
+- [`docs/threat-model.md`](docs/threat-model.md) — already carries the
+  spec's required acknowledgments; the per-component analysis is still
+  open. `tenantdeck-security-review` treats this as the living threat
+  model.
+- [`docs/local-development.md`](docs/local-development.md) — quickstart
+  and dev workflow.
+- [`docs/operations.md`](docs/operations.md) — deployment, key rotation,
+  session revocation, NetworkPolicy setup.
+
+Don't let a skeleton sit there looking finished — each one says "Status:
+not started" for a reason; update that line the moment real content goes
+in, and don't claim a quickstart or runbook works until it's actually been
+run.

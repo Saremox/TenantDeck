@@ -8,10 +8,10 @@ description: "Adversarial security review lenses for TenantDeck, derived from it
 Per `docs/spec/01-working-agreement.md`: implementation and review are
 separate passes, and agreement between them does not prove correctness.
 Review this diff as an attacker would, against the concrete requirements
-below — not as a second implementer confirming the first one's choices.
-Per `docs/spec/09-documentation-and-threat-model.md`: agent-generated code
-and green CI are *not* independent security certification. Treat this skill
-as that missing independent check.
+below and against `docs/threat-model.md` — not as a second implementer
+confirming the first one's choices. Per that threat model: agent-generated
+code and green CI are *not* independent security certification. Treat this
+skill as that missing independent check.
 
 For each finding: state the concrete exploit scenario (who, what request,
 what they get), not just "this violates the spec." Findings should turn into
@@ -77,6 +77,10 @@ and add regression tests; do not merely describe them").
   HTTP response to the browser?
 - Could one session/browser create unbounded watches or trigger a retry
   storm on repeated 401/403s?
+- Is login itself rate-limited/bounded against brute-force or abuse (repeated
+  callback/token-exchange attempts), with the rate-limit state itself bounded
+  in size? Are any per-replica limits (this isn't shared state across
+  replicas unless stated) documented as such rather than assumed global?
 - Is there any code path where one user's client/Authorization header could
   be reused for another session's request (shared client, cache, pool)?
 - Are logs structured and redacted, with correlation IDs and bounded-
@@ -138,7 +142,32 @@ too, not just a test-writing checklist:
   live lookup/Capsule Proxy-scoped call), not a client-supplied namespace
   name or a trusted JWT claim asserting a tenant name?
 
-## Lens 6 — Comments (see `CLAUDE.md` "Code style")
+## Lens 6 — Browser security headers and hostile content (`docs/spec/04-auth-session-browser-security.md`)
+
+Lens 1 covers the auth/session half of that spec file; this is the other
+half — the part about what the browser actually renders and is told to
+trust. It's easy to review auth logic carefully and wave this part through
+because "it's just the UI," which is exactly why it needs its own pass:
+
+- Is there a strict CSP on every response that serves the frontend, with no
+  third-party runtime scripts or CDNs allowed by policy?
+- Is any Kubernetes-sourced text — pod logs, annotations, labels, event
+  messages, resource names — ever rendered as HTML (`dangerouslySetInnerHTML`
+  or equivalent) instead of as escaped text? Treat all of it as attacker-
+  controlled: a malicious annotation or log line is the realistic XSS vector
+  here, not user-typed form input.
+- Are rendered links (ingress hosts, annotation-sourced URLs, etc.)
+  validated by scheme before being made clickable? A `javascript:` or
+  `data:` URL from a resource name/annotation must not become a live link.
+- Are anti-framing (`X-Frame-Options`/`frame-ancestors`),
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy`, and HSTS (in
+  production) actually set, and is `Cache-Control: no-store` present on
+  responses carrying session or tenant data?
+- Does anything cache tenant data in a service worker? (It must not — if a
+  service worker exists at all for asset caching, confirm it never touches
+  API responses.)
+
+## Lens 7 — Comments (see `CLAUDE.md` "Code style")
 
 - Flag comments that only restate the next line — they should be deleted,
   not left as noise in a security-sensitive diff.

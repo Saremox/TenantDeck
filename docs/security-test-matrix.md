@@ -38,6 +38,15 @@ written, and keep `Status` honest (`missing` / `in progress` / `covered`).
 | 25 | CI: fork PRs run without secrets/write privileges | spec/08 | | | missing |
 | 26 | CI: vulnerability scan policy fails on actionable high/critical findings | spec/08 | | | missing |
 | 27 | Release workflow: SBOM/provenance + artifact signing, no publish from PRs | spec/08 | | | missing |
+| 28 | CSP present and strict; no third-party scripts/CDNs loaded | spec/04 | | | missing |
+| 29 | Hostile Kubernetes-sourced content (logs/annotations/labels/events) never rendered as executable HTML | spec/04 | | | missing |
+| 30 | Rendered links validate URL scheme (no `javascript:`/`data:`) | spec/04 | | | missing |
+| 31 | Anti-framing/content-type/referrer/HSTS headers present; `no-store` on sensitive responses | spec/04 | | | missing |
+| 32 | No service worker caches tenant/session data | spec/04 | | | missing |
+| 33 | Login/token-exchange attempts rate-limited; limiter state itself bounded | spec/05 | | | missing |
+| 34 | Each required UI state (empty/loading/forbidden/expired-session/unavailable-upstream) renders distinctly for its condition | spec/02 | | | missing |
+| 35 | Frontend API client maps 401/403/5xx/network failure to the correct UI state | spec/02 | | | missing |
+| 36 | Automated accessibility checks (axe-core) pass with zero serious/critical violations on required views | spec/02 | | | missing |
 
 Add rows as the spec is refined or new findings surface during the
 adversarial review phase (`docs/spec/10-process-and-definition-of-done.md`,

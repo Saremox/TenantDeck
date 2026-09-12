@@ -35,6 +35,10 @@ them.
 - `CLAUDE.md` — condensed durable constraints and project commands.
 - `docs/implementation-plan.md` — living progress tracker against the execution sequence.
 - `docs/security-test-matrix.md` — living map of requirements in this spec to actual tests.
+- `SECURITY.md`, `docs/architecture.md`, `docs/threat-model.md`,
+  `docs/local-development.md`, `docs/operations.md` — required by section 9
+  ([Documentation and threat model](09-documentation-and-threat-model.md));
+  currently skeletons stating what each must cover, not finished docs.
 
 ## Skills
 

@@ -9,8 +9,8 @@ Full requirements: `docs/spec/07-mandatory-automated-testing.md`. Two
 commands, both called identically by CI:
 
 - `make verify` — fast, deterministic: fmt/vet/static analysis/race-enabled
-  unit+integration tests (Go), lint/typecheck/tests/build (frontend),
-  Helm lint/template/schema validation.
+  unit+integration tests (Go), lint/typecheck/tests/build + automated
+  accessibility checks (frontend), Helm lint/template/schema validation.
 - `make e2e` — disposable full-stack suite described below.
 
 **Do not pursue a coverage percentage instead of testing security
@@ -91,6 +91,60 @@ the input space better than enumerated cases:
 - No cross-user leakage: two concurrent sessions with different identities
   never observe each other's data (this is the unit-level version of the
   E2E tenant-isolation assertions below).
+- Security/browser headers asserted directly on responses: CSP present and
+  strict (no third-party script sources), `X-Content-Type-Options: nosniff`,
+  an anti-framing header, `Referrer-Policy`, and `Cache-Control: no-store`
+  on any response carrying session or tenant data — assert header values,
+  not just response status.
+- Login/token-exchange attempts are rate-limited and that limiter's own
+  state is bounded (an attacker spamming distinct identifiers can't grow it
+  unboundedly).
+
+## Frontend logic tests (required, no coverage percentage)
+
+Per `docs/spec/02-product-and-scope.md`: frontend typechecking/build and
+logic tests are mandatory; UI browser automation is optional. There's no
+numeric coverage target here (unlike the BFF's 100%) — a percentage over
+React component code rewards testing trivial presentation, not the things
+that actually break. Instead, these concrete categories are required,
+however the test runner/library is chosen:
+
+- **API client error mapping**: a 401 response drives the app to the
+  logged-out/login state, a 403 to a forbidden state, a 5xx or network
+  failure to an unavailable-upstream state — test each mapping directly,
+  not just "the app doesn't crash."
+- **Session-expired handling**: given an expired-session response mid-use,
+  the app reaches the documented expired-session state and a subsequent
+  login attempt isn't blocked by stale client state.
+- **Hostile content renders as text, not markup.** Feed a log line,
+  annotation, label, or event message containing `<script>`/HTML into every
+  component that renders Kubernetes-sourced content and assert the output
+  has no executable markup — this is the component-level regression test
+  for the XSS risk in
+  `docs/spec/04-auth-session-browser-security.md` and Lens 6 of
+  `tenantdeck-security-review`.
+- **Rendered links validate URL scheme.** A `javascript:`/`data:` URL
+  sourced from a resource name or annotation must not become a clickable
+  link.
+- **Every required UI state actually renders distinctly**: empty, loading,
+  forbidden, expired-session, and unavailable-upstream each need their own
+  test proving the right one shows for the right condition — not just that
+  *a* state renders.
+
+## Accessibility: automated checks (axe-core)
+
+Wire axe-core (or an equivalent maintained automated accessibility checker)
+into the frontend test step so `make verify` runs it, not just a human
+reviewer's judgment call. Every required view/page (see the list in
+`docs/spec/02-product-and-scope.md`) must pass with zero serious/critical
+violations. If a violation is a known limitation of a third-party
+component with no immediate fix, record a narrowly scoped, justified
+exception next to the check (mirroring how the CI vulnerability policy in
+`docs/spec/08-github-actions-and-supply-chain.md` handles exceptions) —
+never a blanket suppression to get green. This catches missing labels,
+contrast, and focus-order problems mechanically; it doesn't replace manual
+keyboard-navigation sense-checking, it just makes the mechanical part of
+"accessible controls" enforced rather than assumed.
 
 ## Mandatory E2E stack
 
