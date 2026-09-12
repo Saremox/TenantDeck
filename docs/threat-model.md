@@ -1,9 +1,9 @@
 # Threat model
 
 **Status: acknowledgments, assets, trust boundaries, and attacker
-archetypes written (Phase 1). Per-component analysis and residual risks
-still open** — those need real code to analyze, not the intended design.
-The required acknowledgments below come straight from
+archetypes written (Phase 1); per-component analysis and residual risks
+now written against the real Phase 1-4 codebase.** The required
+acknowledgments below come straight from
 [`docs/spec/09-documentation-and-threat-model.md`](spec/09-documentation-and-threat-model.md)
 and are already authoritative — don't soften or remove them as the system
 gets built.
@@ -87,16 +87,94 @@ What's actually worth protecting, most sensitive first:
   only the question of whether the UI/API correctly shows "nothing" instead
   of erroring into a default-allow state.
 
-## Still open (see implementation-plan.md Phase 1 note)
+## Per-component analysis
 
-- **Per-component analysis** once components exist: for each of OIDC
-  login, session handling, the upstream client, and the frontend, the
-  concrete attack scenarios considered and how they're mitigated (or
-  explicitly accepted as a residual risk, with the reason).
-- **Residual risks actually accepted**, distinct from the required
-  acknowledgments above — e.g. any NetworkPolicy limitation documented in
-  `docs/operations.md`, or a CI exception recorded under
-  `docs/spec/08-github-actions-and-supply-chain.md`'s vulnerability policy.
+- **OIDC login (`internal/auth`).** Scenarios considered: code/state
+  replay (mitigated — single-use login transactions via Redis `GETDEL`,
+  `TestCallbackHandler_RejectsReplayedState`), nonce substitution
+  (mitigated — server-held expected nonce threaded through context, not
+  client-suppliable), session fixation (partially mitigated — session IDs
+  are only minted post-verification and never client-supplied, but no
+  test yet pre-seeds a cookie before login to confirm it's ignored; see
+  `docs/security-test-matrix.md` row 9), and a malicious/compromised IdP
+  response (out of scope by design — `docs/spec/03` treats the configured
+  issuer as trusted; a compromised IdP is a different, larger problem
+  than TenantDeck can mitigate).
+- **Session handling (`internal/session`).** Scenarios considered: Redis
+  compromise alone (mitigated — AES-256-GCM with a separately-held key;
+  asset #1/#2), store unavailability (mitigated — every operation fails
+  closed, never falls back to treating the caller as authenticated),
+  and stale/replayed sessions after logout (mitigated —
+  `TestLogoutHandler_OldCookieIsRejectedAfterLogout`). Not mitigated:
+  idle-timeout-independent absolute expiry only (accepted residual risk
+  below), and no refresh-race protection since refresh isn't implemented
+  at all yet.
+- **Upstream client (`internal/capsule`).** Scenarios considered: header
+  injection via a caller-controlled path segment (mitigated — every
+  path parameter goes through `validK8sName`'s DNS-1123 validator before
+  a request is built), forwarding-header spoofing (mitigated — the
+  request is built from an explicit allowlist of headers, never copied
+  from the incoming request), and an oversized/slow upstream response
+  tying up a goroutine indefinitely (mitigated for bounded calls via
+  `httpClient`'s `Timeout` + `readBounded`'s size cap; mitigated for the
+  log-streaming path via `context.WithTimeout` + `io.LimitReader` instead,
+  since a shared wall-clock timeout would cut a legitimate `follow=true`
+  stream). Not mitigated, and can't be from this layer alone: Capsule
+  Proxy itself returning data for the wrong tenant — that's Capsule's own
+  boundary, not TenantDeck's to fix (required acknowledgment above).
+- **Frontend (`web/`).** Scenarios considered: hostile Kubernetes-sourced
+  content (pod logs, event messages, ingress hosts, resource names)
+  becoming executable markup (mitigated — React's default text-node
+  escaping plus an explicit `isSafeHostname` gate before anything becomes
+  an `<a href>`; tested per-component, see `docs/security-test-matrix.md`
+  row 29/30) and a strict CSP as a second layer if escaping ever has a
+  gap (`default-src 'self'; object-src 'none'; base-uri 'none';
+  frame-ancestors 'none'`, no `unsafe-inline`/`unsafe-eval`, no
+  third-party sources). Not mitigated: an XSS that does occur still acts
+  with the victim's live session (required acknowledgment above — this
+  is a consequence-reduction design, not an XSS-proof one).
+- **Container/chart/E2E (`Dockerfile`, `charts/tenantdeck`, `cmd/mockoidc`).**
+  Scenarios considered: a compromised/malicious build dependency
+  (mitigated for the shipped image — pinned base image digests, no
+  shell/package manager in the final `distroless/static` stage, so even a
+  build-time compromise has a minimal runtime surface to persist in); a
+  Pod with excess privilege being used to pivot (mitigated — non-root
+  UID 65532, `allowPrivilegeEscalation: false`, all capabilities dropped,
+  `readOnlyRootFilesystem: true`, no SA token mount, no RBAC objects
+  created by the chart at all — verified against the actually-running
+  container, not just the rendered manifest, see
+  `docs/implementation-plan.md` Phase 4); `cmd/mockoidc` itself becoming
+  a production login bypass (mitigated by construction — it is a
+  separate `cmd/`, never imported by `cmd/tenantdeck`, built by a
+  separate Dockerfile (`e2e/mockoidc.Dockerfile`) never referenced by the
+  production one). Not yet mitigated/verified: NetworkPolicy enforcement
+  against a real enforcing CNI, and Capsule-tenant-boundary behavior
+  under a real multi-tenant cluster — both blocked in this session for
+  reasons with no bearing on TenantDeck's own code (see
+  `docs/implementation-plan.md` Phase 4 "Known blockers").
+
+## Residual risks accepted
+
+- **Absolute-only session expiry, no idle timeout.** A session stays
+  valid until the ID token's own `exp`, even if the user walked away — a
+  shared/kiosk-browser risk `docs/spec/04-auth-session-browser-security.md`
+  asks to be mitigated but isn't yet (matrix row 10, `partial`). Accepted
+  for now because fixing it properly needs refresh-token handling first
+  (an idle timeout without refresh just logs everyone out early).
+- **No login/token-exchange rate limiting** (matrix row 33, `missing`).
+  Accepted as a known gap, not a design decision — an IdP-side brute-force
+  protection (most real IdPs already rate-limit token endpoints
+  themselves) is the practical mitigation until this is built.
+- **NetworkPolicy's CIDR-based egress allowlists go stale on IP rotation**
+  (DNS rotation, a load balancer changing addresses) with no warning —
+  documented in `docs/operations.md`, inherent to `networking.k8s.io/v1`
+  NetworkPolicy (no FQDN matching), not fixable by TenantDeck's chart
+  alone without requiring a specific CNI (e.g. Cilium) that not every
+  installation will run.
+- **No metrics endpoint and no request-correlation ID yet**
+  (`docs/operations.md` "Logs and metrics") — an operational gap that
+  doesn't weaken the security boundary itself, but does make detecting
+  abuse or diagnosing an incident slower than it should be.
 
 This file is read by `tenantdeck-security-review` reviewers as the
 standing threat model — keep it reconciled with

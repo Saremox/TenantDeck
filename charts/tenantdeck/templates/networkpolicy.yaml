@@ -1,0 +1,62 @@
+{{- if .Values.networkPolicy.enabled -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tenantdeck.fullname" . }}
+  labels:
+    {{- include "tenantdeck.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tenantdeck.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  # An empty ingress/egress list below means "deny everything of that
+  # direction" (not "allow everything") once its PolicyType is set - this
+  # is the secure default docs/spec/06-container-and-kubernetes-deployment.md
+  # requires ("No default allow-all egress. Require users to configure
+  # external endpoint CIDRs/selectors"): leaving networkPolicy.ingress.from
+  # or any of the egress `to` lists empty does not make this policy a
+  # no-op, it makes the Pod unreachable/unable to reach out until
+  # configured. See docs/operations.md "NetworkPolicy".
+  ingress:
+    {{- with .Values.networkPolicy.ingress.from }}
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: http
+          protocol: TCP
+    {{- end }}
+  egress:
+    {{- if .Values.networkPolicy.egress.dns.enabled }}
+    - to:
+        - namespaceSelector:
+            {{- toYaml .Values.networkPolicy.egress.dns.namespaceSelector | nindent 12 }}
+          podSelector:
+            {{- toYaml .Values.networkPolicy.egress.dns.podSelector | nindent 12 }}
+      ports:
+        {{- toYaml .Values.networkPolicy.egress.dns.ports | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.idp.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        {{- toYaml $.Values.networkPolicy.egress.idp.ports | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.capsuleProxy.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        {{- toYaml $.Values.networkPolicy.egress.capsuleProxy.ports | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.sessionStore.to }}
+    - to:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        {{- toYaml $.Values.networkPolicy.egress.sessionStore.ports | nindent 8 }}
+    {{- end }}
+    {{- with .Values.networkPolicy.egress.extra }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

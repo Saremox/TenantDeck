@@ -1,0 +1,13 @@
+.git
+bin/
+*.md
+docs/
+.claude/
+charts/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+.env
+*.out
+coverage.*
+*.coverprofile

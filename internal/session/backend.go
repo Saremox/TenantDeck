@@ -17,4 +17,5 @@ type backend interface {
 	Get(ctx context.Context, key string) ([]byte, error)    // returns ErrNotFound if absent
 	GetDel(ctx context.Context, key string) ([]byte, error) // returns ErrNotFound if absent
 	Del(ctx context.Context, key string) error
+	Ping(ctx context.Context) error
 }

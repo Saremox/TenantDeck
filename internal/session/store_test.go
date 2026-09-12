@@ -43,6 +43,10 @@ func (f *fakeBackend) Del(_ context.Context, key string) error {
 	return nil
 }
 
+func (f *fakeBackend) Ping(context.Context) error {
+	return nil
+}
+
 // unavailableBackend simulates a store that cannot be reached at all —
 // every operation fails, as if Redis were down.
 type unavailableBackend struct{}
@@ -59,6 +63,9 @@ func (unavailableBackend) GetDel(context.Context, string) ([]byte, error) {
 	return nil, errStoreUnavailable
 }
 func (unavailableBackend) Del(context.Context, string) error {
+	return errStoreUnavailable
+}
+func (unavailableBackend) Ping(context.Context) error {
 	return errStoreUnavailable
 }
 

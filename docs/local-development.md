@@ -75,42 +75,49 @@ current if much time has passed.
    (`Content-Security-Policy`, `Cache-Control: no-store`, etc.) set by
    `internal/httpapi`'s `securityHeaders` middleware.
 
+## A real login, locally
+
+`cmd/mockoidc` is a real, standalone, interactively-runnable OIDC
+provider (real discovery/JWKS/authorization-code+PKCE/refresh, real
+RS256-signed JWTs) — run it alongside the BFF for a real browser login
+without needing an external IdP:
+
+```sh
+go run ./cmd/mockoidc &  # MOCKOIDC_LISTEN_ADDR, _ISSUER_URL, _CLIENT_ID, _CLIENT_SECRET required
+# point TENANTDECK_OIDC_ISSUER_URL/_CLIENT_ID/_CLIENT_SECRET at it, then
+go run ./cmd/tenantdeck
+```
+
+It never ships in the production image (`Dockerfile` doesn't reference
+`cmd/mockoidc` at all) — it exists purely for this and for `make e2e`. It
+is not a substitute for testing against a real IdP before a real
+deployment.
+
 ## What you can't fully exercise locally yet
 
-- **A real login.** `TENANTDECK_OIDC_ISSUER_URL` needs a reachable OIDC
-  discovery document (`/.well-known/openid-configuration`) for the BFF to
-  even start (`auth.NewHandler` does discovery eagerly). There is currently
-  **no standalone, reusable mock OIDC provider binary in this repo** — the
-  one that exists (`internal/auth/testop_test.go`) is test-only Go code
-  that spins up inside `go test`, not something you can run interactively.
-  For a real manual login locally, point `TENANTDECK_OIDC_ISSUER_URL` at an
-  actual OIDC provider you control (a dev realm on Keycloak/Dex/your org's
-  IdP, etc.), with a client registered for
-  `http://127.0.0.1:8080/auth/callback`. Deciding on a reusable mock OIDC
-  provider is explicitly deferred to Phase 4
-  (`docs/implementation-plan.md` ADR notes) — until then, the full
-  login→session→logout path is verified by `internal/auth`'s test suite
-  (real signature/discovery/JWKS, just not interactively from a browser).
 - **A real namespace list.** `TENANTDECK_CAPSULE_PROXY_URL` needs a real
   Capsule Proxy (or at least something answering `GET /api/v1/namespaces`
-  the way it does) behind it. Without Docker/kind available, this hasn't
-  been exercised against the real thing in this repository yet — see
-  `docs/implementation-plan.md`'s "Known blockers."
+  the way it does) behind it. `make e2e` stands one up for real — see
+  `docs/implementation-plan.md`'s "Known blockers" for why that hasn't
+  completed a run in this repository yet.
 
 ## `make verify` and friends
 
 - **`make verify`** — `gofmt` check, `go vet`, `go test -race` (scoped to
   `./cmd/... ./internal/...` — see the Makefile comment on why not bare
-  `./...`), then frontend typecheck + lint + `vitest run` + build. This is
-  what's described in `CLAUDE.md`'s Commands section; CI must call the
-  same target once CI exists (Phase 4).
+  `./...`), frontend typecheck + lint + `vitest run` + build, then
+  `helm lint`/`helm template` against the chart's example values
+  (`make helm-verify`). This is what's described in `CLAUDE.md`'s Commands
+  section; CI calls the same target (`.github/workflows/verify.yml`).
 - **`make build`** — frontend build, then `go build -o bin/tenantdeck
   ./cmd/tenantdeck`.
 - **`make run`** — `go run ./cmd/tenantdeck` (needs the env vars above
   already exported).
-- **`make e2e`** doesn't exist yet — it's the mandatory full-stack suite
-  from `docs/spec/07-mandatory-automated-testing.md`, which needs the kind/
-  Capsule/mock-OIDC stack Phase 4 builds.
+- **`make e2e`** — the mandatory full-stack suite from
+  `docs/spec/07-mandatory-automated-testing.md` (kind + Calico + Capsule +
+  Valkey + `cmd/mockoidc` + the built image/chart). See `e2e/README.md`
+  for what it does and for why it hasn't completed an actual run in this
+  repository's own development sessions so far.
 - **Running one package while iterating**: `go test ./internal/auth/...
   -run TestCallbackHandler -v`. Most packages' tests spin up a real
   `redis-server` subprocess automatically (they skip with a clear message

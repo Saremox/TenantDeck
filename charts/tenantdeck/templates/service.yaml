@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tenantdeck.fullname" . }}
+  labels:
+    {{- include "tenantdeck.labels" . | nindent 4 }}
+spec:
+  # No NodePort/LoadBalancer by default - docs/spec/06-container-and-kubernetes-deployment.md
+  # ("No public NodePort/LoadBalancer by default"). Use ingress.enabled for
+  # external access.
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "tenantdeck.selectorLabels" . | nindent 4 }}

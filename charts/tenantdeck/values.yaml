@@ -1,0 +1,247 @@
+# Default values for tenantdeck. See values.schema.json for type/required
+# constraints and docs/operations.md for an explained walkthrough.
+# Development and production starting points: ci/values-dev.yaml,
+# ci/values-prod-example.yaml.
+
+replicaCount: 2
+
+image:
+  # -- Registry + repository for the TenantDeck image. No default tag is
+  # baked in beyond the chart's own appVersion, so a pinned digest
+  # (recommended for production - see docs/operations.md) always wins when set.
+  registry: ghcr.io
+  repository: saremox/tenantdeck
+  # -- Overrides the image tag; defaults to the chart's appVersion.
+  tag: ""
+  # -- Pin by digest instead of/in addition to tag, e.g.
+  # "sha256:...". Recommended for production.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+# -- Secret(s) for pulling the image from a private registry.
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  # -- If not set, a name is generated from the release name.
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+
+# Rendered at Pod.spec.securityContext - see
+# docs/spec/06-container-and-kubernetes-deployment.md. automountServiceAccountToken
+# is intentionally not configurable here: TenantDeck never needs the
+# Kubernetes API (docs/spec/05), so disabling it is a security invariant,
+# not a preference - see templates/serviceaccount.yaml and deployment.yaml.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# Rendered at Pod.spec.containers[0].securityContext.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 64Mi
+    ephemeral-storage: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+    ephemeral-storage: 128Mi
+
+# The container runs with readOnlyRootFilesystem: true and needs no
+# writable path at all - the binary is static, serves everything from
+# memory/the embedded frontend, and writes no temp files. No emptyDir is
+# mounted by default because none is required
+# (docs/spec/06-container-and-kubernetes-deployment.md: "If temporary
+# storage is required, use a size-limited emptyDir and explain it" - it
+# isn't, so there isn't one). extraVolumes/extraVolumeMounts below exist
+# for the rare deployment that needs one anyway.
+extraVolumes: []
+extraVolumeMounts: []
+
+probes:
+  liveness:
+    path: /healthz
+    initialDelaySeconds: 3
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    path: /readyz
+    initialDelaySeconds: 3
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+# -- How long Kubernetes waits for an in-flight request to finish before
+# the process is killed on a rolling update/scale-down - matches the
+# graceful shutdown timeout main.go's own server.Shutdown uses.
+terminationGracePeriodSeconds: 30
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 0
+    maxSurge: 1
+
+config:
+  # -- Required. The fixed, externally reachable base URL for this
+  # deployment (TENANTDECK_EXTERNAL_URL) - redirect URIs and cookie
+  # decisions are derived from this, never from a request's Host header.
+  externalURL: ""
+  listenAddr: ":8080"
+  # -- Relaxes cookie Secure/TLS requirements. Never true outside loopback
+  # development - see docs/spec/04-auth-session-browser-security.md.
+  insecure: false
+
+  oidc:
+    # -- Required. The IdP's issuer URL (used for discovery).
+    issuerURL: ""
+    # -- Required.
+    clientID: ""
+    # -- Required. Name of an existing Secret holding the OIDC client
+    # secret - the chart never accepts a plaintext value or generates one.
+    existingSecret: ""
+    existingSecretKey: "client-secret"
+    scopes: "openid profile"
+
+  session:
+    redis:
+      # -- Required. host:port of the external Valkey/Redis. No bundled
+      # database dependency ships with this chart - test infrastructure
+      # provisions its own (see docs/local-development.md / e2e/).
+      addr: ""
+      username: ""
+      # -- Name of an existing Secret holding the Redis/Valkey password.
+      # Leave unset only for an unauthenticated store (development only).
+      existingSecretPassword: ""
+      existingSecretPasswordKey: "password"
+      tls:
+        enabled: false
+        # -- Name of an existing Secret holding a private CA bundle
+        # (existingSecretCAKey) to trust, for a Redis/Valkey deployment
+        # using a non-publicly-trusted certificate. Leave unset to trust
+        # the system CA pool only.
+        existingSecretCA: ""
+        existingSecretCAKey: "ca.crt"
+
+    # -- Required. Name of an existing Secret holding the AES-256-GCM
+    # session encryption key (32 bytes, base64-encoded) - see
+    # docs/local-development.md for how to generate one. Never generated
+    # by this chart: a key minted at install time and lost on uninstall
+    # would make every session unrecoverable, and Helm has no "generate
+    # once, keep forever" primitive safe enough to rely on here.
+    existingSecretEncryptionKey: ""
+    existingSecretEncryptionKeyKey: "encryption-key"
+
+  upstream:
+    # -- Required. The trusted Capsule Proxy origin this deployment talks to.
+    capsuleProxyURL: ""
+
+# -- Extra environment variables appended after the chart's own - for
+# anything not covered above. Each entry is a standard EnvVar
+# ({name, value} or {name, valueFrom}).
+extraEnv: []
+
+ingress:
+  # -- Optional. The app is always same-origin regardless of this setting -
+  # enabling it only changes how traffic reaches the Service, never
+  # introduces a second origin.
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  # - host: tenantdeck.example.com
+  #   paths:
+  #     - path: /
+  #       pathType: Prefix
+  tls: []
+  # - secretName: tenantdeck-tls
+  #   hosts:
+  #     - tenantdeck.example.com
+  # -- Documentation only - the chart does not enforce this. If the
+  # Ingress controller terminates TLS and forwards plain HTTP, configure
+  # its trusted-proxy/X-Forwarded-* handling so TenantDeck's own
+  # externalURL/secure-cookie decisions (which never trust incoming
+  # headers - see docs/spec/04) stay correct. See docs/operations.md.
+  trustedProxies: ""
+
+networkPolicy:
+  # -- Enabled by default: docs/spec/06 requires this, not an opt-in.
+  # There is no default allow-all egress - every allowance below is
+  # explicit, and the CIDR/selector ones are NOT safe to leave empty in
+  # production (see docs/operations.md "NetworkPolicy").
+  enabled: true
+  ingress:
+    # -- Namespace/pod selectors allowed to reach TenantDeck's port
+    # (typically the Ingress controller, or nothing if only accessed via
+    # another in-cluster same-origin path). Each entry is a standard
+    # NetworkPolicyPeer. Empty by default - every deployment's ingress
+    # controller placement differs; see docs/operations.md for examples.
+    from: []
+  egress:
+    dns:
+      # -- kube-dns/CoreDNS - needed for every other egress rule to
+      # resolve names at all. See docs/operations.md on DNS-rotation /
+      # CNI limitations: NetworkPolicy matches IPs, not FQDNs, so an
+      # endpoint whose IP changes needs its CIDR allowance updated too.
+      enabled: true
+      namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # -- CIDR/selector allowances for the OIDC IdP. Required in
+    # production - see docs/operations.md.
+    idp:
+      to: []
+      ports:
+        - port: 443
+          protocol: TCP
+    # -- CIDR/selector allowances for Capsule Proxy. Required in
+    # production - see docs/operations.md.
+    capsuleProxy:
+      to: []
+      ports:
+        - port: 443
+          protocol: TCP
+    # -- CIDR/selector allowances for the external Valkey/Redis. Required
+    # in production - see docs/operations.md.
+    sessionStore:
+      to: []
+      ports:
+        - port: 6379
+          protocol: TCP
+    # -- Additional raw egress rules (standard NetworkPolicyEgressRule
+    # entries) for anything not covered above.
+    extra: []
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+priorityClassName: ""
+
+tests:
+  # -- Image for the `helm test` connection check (templates/tests/).
+  image: busybox:1.36
+

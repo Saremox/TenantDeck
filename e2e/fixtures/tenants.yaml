@@ -1,0 +1,44 @@
+# Two independent tenants with distinct identifiable fixtures, per
+# docs/spec/07-mandatory-automated-testing.md item 6 - "Test direct
+# upstream permissions to prove fixtures are wired correctly before
+# testing the BFF." Subjects match mockoidc's login_hint-selectable
+# identities (cmd/mockoidc/server.go).
+apiVersion: capsule.clastix.io/v1beta2
+kind: Tenant
+metadata:
+  name: tenant-a
+spec:
+  owners:
+    - kind: User
+      name: alice@tenant-a.example.com
+  namespaceOptions:
+    quota: 3
+---
+apiVersion: capsule.clastix.io/v1beta2
+kind: Tenant
+metadata:
+  name: tenant-b
+spec:
+  owners:
+    - kind: User
+      name: bob@tenant-b.example.com
+  namespaceOptions:
+    quota: 3
+---
+# A non-tenant authenticated user (docs/spec/07 item 6's "valid
+# authenticated user without tenant access") is simply any mockoidc
+# subject never listed as an owner above - e.g. login_hint=nobody@example.com -
+# no fixture object needed for that case.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-a-dev
+  labels:
+    capsule.clastix.io/tenant: tenant-a
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tenant-b-dev
+  labels:
+    capsule.clastix.io/tenant: tenant-b

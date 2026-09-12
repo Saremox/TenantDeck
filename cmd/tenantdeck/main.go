@@ -36,10 +36,16 @@ func run() error {
 		return err
 	}
 
+	redisTLSConfig, err := cfg.Session.BuildRedisTLSConfig()
+	if err != nil {
+		return err
+	}
+
 	backend := session.NewRedisBackend(session.RedisOptions{
-		Addr:     cfg.Session.RedisAddr,
-		Username: cfg.Session.RedisUsername,
-		Password: cfg.Session.RedisPassword,
+		Addr:      cfg.Session.RedisAddr,
+		Username:  cfg.Session.RedisUsername,
+		Password:  cfg.Session.RedisPassword,
+		TLSConfig: redisTLSConfig,
 	})
 	defer backend.Close()
 

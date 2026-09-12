@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tenantdeck.fullname" . }}
+  labels:
+    {{- include "tenantdeck.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  selector:
+    matchLabels:
+      {{- include "tenantdeck.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "tenantdeck.labels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "tenantdeck.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: {{ include "tenantdeck.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: TENANTDECK_LISTEN_ADDR
+              value: {{ printf ":%d" (.Values.service.port | int) | quote }}
+            - name: TENANTDECK_EXTERNAL_URL
+              value: {{ required "config.externalURL is required" .Values.config.externalURL | quote }}
+            - name: TENANTDECK_INSECURE
+              value: {{ .Values.config.insecure | quote }}
+            - name: TENANTDECK_OIDC_ISSUER_URL
+              value: {{ required "config.oidc.issuerURL is required" .Values.config.oidc.issuerURL | quote }}
+            - name: TENANTDECK_OIDC_CLIENT_ID
+              value: {{ required "config.oidc.clientID is required" .Values.config.oidc.clientID | quote }}
+            - name: TENANTDECK_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.oidc.existingSecret is required" .Values.config.oidc.existingSecret }}
+                  key: {{ .Values.config.oidc.existingSecretKey }}
+            - name: TENANTDECK_OIDC_SCOPES
+              value: {{ .Values.config.oidc.scopes | quote }}
+            - name: TENANTDECK_REDIS_ADDR
+              value: {{ required "config.session.redis.addr is required" .Values.config.session.redis.addr | quote }}
+            {{- with .Values.config.session.redis.username }}
+            - name: TENANTDECK_REDIS_USERNAME
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.config.session.redis.existingSecretPassword }}
+            - name: TENANTDECK_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.config.session.redis.existingSecretPasswordKey }}
+            {{- end }}
+            - name: TENANTDECK_REDIS_TLS
+              value: {{ .Values.config.session.redis.tls.enabled | quote }}
+            {{- if .Values.config.session.redis.tls.existingSecretCA }}
+            - name: TENANTDECK_REDIS_CA_FILE
+              value: {{ printf "/etc/tenantdeck/redis-ca/%s" .Values.config.session.redis.tls.existingSecretCAKey | quote }}
+            {{- end }}
+            - name: TENANTDECK_SESSION_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.session.existingSecretEncryptionKey is required" .Values.config.session.existingSecretEncryptionKey }}
+                  key: {{ .Values.config.session.existingSecretEncryptionKeyKey }}
+            - name: TENANTDECK_CAPSULE_PROXY_URL
+              value: {{ required "config.upstream.capsuleProxyURL is required" .Values.config.upstream.capsuleProxyURL | quote }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- if or .Values.config.session.redis.tls.existingSecretCA .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- if .Values.config.session.redis.tls.existingSecretCA }}
+            - name: redis-ca
+              mountPath: /etc/tenantdeck/redis-ca
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+      {{- if or .Values.config.session.redis.tls.existingSecretCA .Values.extraVolumes }}
+      volumes:
+        {{- if .Values.config.session.redis.tls.existingSecretCA }}
+        - name: redis-ca
+          secret:
+            secretName: {{ .Values.config.session.redis.tls.existingSecretCA }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}

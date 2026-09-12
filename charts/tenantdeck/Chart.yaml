@@ -1,0 +1,16 @@
+apiVersion: v2
+name: tenantdeck
+description: Security-first, read-only customer dashboard for a Capsule multi-tenant Kubernetes platform.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/Saremox/TenantDeck
+sources:
+  - https://github.com/Saremox/TenantDeck
+keywords:
+  - kubernetes
+  - multi-tenancy
+  - capsule
+  - dashboard
+maintainers:
+  - name: Saremox

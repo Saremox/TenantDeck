@@ -3,10 +3,16 @@
 TenantDeck is a security-first, read-only customer dashboard for an existing
 Capsule multi-tenant Kubernetes platform. Tagline: *Your slice of Kubernetes.*
 
-**Status: Phase 2 (vertical slice) done** — real OIDC login → server-side
-session → namespace list → UI, as working, tested code, not yet validated
-against a real Capsule Proxy/cluster (see `docs/implementation-plan.md`
-"Known blockers"). The full requirements live in
+**Status: Phase 4 (hardened image/chart + E2E stack) done for what this
+session could build and run** — the full v1 API/frontend (Phases 2-3), a
+hardened Dockerfile/Helm chart verified against a real running container,
+and a real standalone mock OIDC provider (`cmd/mockoidc`) proven against
+the real binaries via a full HTTP cookie-jar login round trip, all as
+working, tested code. The mandatory E2E stack (`e2e/`) is fully authored
+but has not completed a run, and none of this has been validated against
+a real Capsule Proxy/cluster — see `docs/implementation-plan.md` "Known
+blockers" for exactly why (two independently diagnosed environment
+limits, not a design gap). The full requirements live in
 [`docs/spec/`](docs/spec/README.md), split by topic from the original
 kickoff prompt — read that index before writing code; it is normative,
 this file is just the condensed, always-relevant summary. The dependency
@@ -124,20 +130,25 @@ Real and verified (2026-09-12) — see
 required env vars, and troubleshooting:
 
 - `make verify` — `gofmt` check, `go vet`, `go test -race` (Go packages
-  only — see the Makefile comment on why scoped, not bare `./...`), then
+  only — see the Makefile comment on why scoped, not bare `./...`),
   frontend typecheck + lint + `vitest run` (includes axe-core a11y checks)
-  + build. Helm lint/template/schema validation will be added here once
-  the chart exists (Phase 4) — not yet.
+  + build, then `helm lint`/`helm template` against the chart's example
+  values (`make helm-verify`).
 - `make build` — frontend build, then `go build -o bin/tenantdeck
   ./cmd/tenantdeck`.
 - `make run` — `go run ./cmd/tenantdeck` (needs env vars exported first).
-- `make e2e` — **not implemented yet.** This is the mandatory disposable
-  full-stack E2E suite (kind + Capsule + mock OIDC + Valkey + built image/
-  chart) from `docs/spec/07-mandatory-automated-testing.md`; it needs
-  Phase 4's chart and a container/Kubernetes-capable environment, neither
-  of which exist yet.
+- `make e2e` — the mandatory disposable full-stack E2E suite (kind +
+  Calico + Capsule + mock OIDC + Valkey + the built image/chart, two
+  replicas) from `docs/spec/07-mandatory-automated-testing.md`. Fully
+  implemented (`e2e/`) but **has not completed an actual run** — see
+  `docs/implementation-plan.md` "Known blockers" for the two
+  independently diagnosed environment limits that blocked it in this
+  session, and `e2e/README.md` for what was verified outside a cluster
+  instead. Do not claim it has passed without actually running it.
 
-CI must call `make verify`/`make e2e`, not a separate path, once CI exists.
+CI (`.github/workflows/verify.yml`, `release.yml`) calls `make
+verify`/`make e2e`, not a separate path — also unexecuted by an actual
+CI run so far (see `docs/operations.md` "Releasing").
 
 ## Living docs to keep current
 
@@ -148,24 +159,14 @@ Update both whenever you complete work, not just at the end of a session.
 
 ## Required docs not yet written
 
-These are mandated by
-[`docs/spec/09-documentation-and-threat-model.md`](docs/spec/09-documentation-and-threat-model.md)
-and currently exist only as skeletons stating what must go in them —
-replace each with real content at the point in the execution sequence
-(`docs/spec/10-process-and-definition-of-done.md`) where it stops being
-speculative:
+Mandated by
+[`docs/spec/09-documentation-and-threat-model.md`](docs/spec/09-documentation-and-threat-model.md).
+`docs/local-development.md`, `docs/architecture.md`, `docs/operations.md`,
+and `docs/threat-model.md` (including its per-component analysis) are now
+written for real against the built system — only this one is still a
+skeleton:
 
 - [`SECURITY.md`](SECURITY.md) — vulnerability reporting policy.
-- [`docs/architecture.md`](docs/architecture.md) — the system as actually
-  built, not a restatement of the spec.
-- [`docs/threat-model.md`](docs/threat-model.md) — already carries the
-  spec's required acknowledgments; the per-component analysis is still
-  open. `tenantdeck-security-review` treats this as the living threat
-  model.
-- [`docs/local-development.md`](docs/local-development.md) — quickstart
-  and dev workflow.
-- [`docs/operations.md`](docs/operations.md) — deployment, key rotation,
-  session revocation, NetworkPolicy setup.
 
 Don't let a skeleton sit there looking finished — each one says "Status:
 not started" for a reason; update that line the moment real content goes

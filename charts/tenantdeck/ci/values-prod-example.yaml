@@ -1,0 +1,89 @@
+# Example starting point for a production installation. Every secret
+# referenced below must already exist in the target namespace - this
+# chart never generates or accepts a plaintext secret value (see
+# docs/spec/06-container-and-kubernetes-deployment.md). Replace every
+# example.com/CIDR/selector value with your own before applying; the
+# NetworkPolicy allow-lists in particular have no safe generic default
+# (see docs/operations.md "NetworkPolicy").
+replicaCount: 3
+
+image:
+  registry: ghcr.io
+  repository: saremox/tenantdeck
+  # Pin by digest in production rather than a mutable tag - see
+  # docs/operations.md "Updating the image".
+  digest: "sha256:REPLACE_WITH_THE_RELEASE_DIGEST"
+
+config:
+  externalURL: https://tenantdeck.tenant-a.example.com
+  insecure: false
+
+  oidc:
+    issuerURL: https://idp.example.com
+    clientID: tenantdeck-prod
+    existingSecret: tenantdeck-oidc
+    existingSecretKey: client-secret
+
+  session:
+    redis:
+      addr: valkey.example.internal:6379
+      existingSecretPassword: tenantdeck-redis
+      existingSecretPasswordKey: password
+      tls:
+        enabled: true
+        existingSecretCA: tenantdeck-redis-ca
+        existingSecretCAKey: ca.crt
+    existingSecretEncryptionKey: tenantdeck-session
+    existingSecretEncryptionKeyKey: encryption-key
+
+  upstream:
+    capsuleProxyURL: https://capsule-proxy.example.internal:9001
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: tenantdeck.tenant-a.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: tenantdeck-tls
+      hosts:
+        - tenantdeck.tenant-a.example.com
+  # The Ingress controller is expected to terminate TLS and set
+  # X-Forwarded-* - configure its own trusted-proxy setting to the real
+  # edge, and see docs/operations.md for why TenantDeck itself never
+  # trusts those headers for cookie/redirect decisions.
+  trustedProxies: "10.0.0.0/8"
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    idp:
+      to:
+        - ipBlock:
+            cidr: 203.0.113.10/32
+    capsuleProxy:
+      to:
+        - ipBlock:
+            cidr: 198.51.100.20/32
+    sessionStore:
+      to:
+        - ipBlock:
+            cidr: 198.51.100.30/32
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 96Mi
+    ephemeral-storage: 64Mi
+  limits:
+    cpu: "1"
+    memory: 384Mi
+    ephemeral-storage: 128Mi

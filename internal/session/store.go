@@ -66,6 +66,12 @@ func NewStore(b backend, encryptionKey []byte) (*Store, error) {
 	return &Store{backend: b, enc: enc}, nil
 }
 
+// Ping reports whether the underlying store is reachable, for readiness
+// probes - it touches no session data.
+func (s *Store) Ping(ctx context.Context) error {
+	return s.backend.Ping(ctx)
+}
+
 func generateID() (string, error) {
 	raw := make([]byte, idByteLength)
 	if _, err := io.ReadFull(randReader, raw); err != nil {

@@ -60,3 +60,7 @@ func (b *RedisBackend) GetDel(ctx context.Context, key string) ([]byte, error) {
 func (b *RedisBackend) Del(ctx context.Context, key string) error {
 	return b.client.Del(ctx, key).Err()
 }
+
+func (b *RedisBackend) Ping(ctx context.Context) error {
+	return b.client.Ping(ctx).Err()
+}

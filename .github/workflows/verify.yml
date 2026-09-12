@@ -1,0 +1,181 @@
+name: verify
+
+# PR/push CI: the same fast checks `make verify` runs locally, plus
+# Docker build, Helm lint/schema, and security scans - see
+# docs/spec/08-github-actions-and-supply-chain.md. Fork PRs get no
+# secrets/write access: every job below only needs `contents: read`, and
+# pull_request (never pull_request_target) means a fork PR runs with the
+# fork's own token, not this repo's.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Default least-privilege; jobs that need more (none do here) would
+# declare it themselves.
+permissions:
+  contents: read
+
+# A new push/PR update cancels the previous run for the same ref - avoids
+# burning runner minutes on superseded commits.
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.26.0"
+  NODE_VERSION: "22"
+
+jobs:
+  go:
+    name: Go (fmt, vet, race tests, govulncheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l $(find . -name '*.go' -not -path './web/node_modules/*'))"
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            echo "::error::gofmt found unformatted files - run: gofmt -w <file>"
+            exit 1
+          fi
+      - name: go vet
+        run: go vet ./cmd/... ./internal/...
+      - name: go test -race
+        run: go test ./cmd/... ./internal/... -race
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  frontend:
+    name: Frontend (typecheck, lint, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm run typecheck
+        working-directory: web
+      - run: npm run lint
+        working-directory: web
+      - run: npx vitest run
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [go, frontend]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build image (not pushed - PRs never publish)
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: false
+          tags: tenantdeck:ci
+          load: true
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: tenantdeck:ci
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+          # See docs/operations.md "Vulnerability policy" for the
+          # exception process - there is no blanket ignore-file by default.
+
+  helm:
+    name: Helm lint/template/schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install helm
+        run: |
+          GOBIN="$(go env GOPATH)/bin" go install helm.sh/helm/v3/cmd/helm@v3.19.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: helm lint charts/tenantdeck -f charts/tenantdeck/ci/values-dev.yaml
+      - run: helm lint charts/tenantdeck -f charts/tenantdeck/ci/values-prod-example.yaml
+      - name: helm template (dev values)
+        run: helm template test charts/tenantdeck -f charts/tenantdeck/ci/values-dev.yaml
+      - name: Trivy IaC scan (rendered manifests + chart source)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: config
+          scan-ref: charts/tenantdeck
+          severity: "HIGH,CRITICAL"
+          exit-code: "1"
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # A private repo needs GITLEAKS_LICENSE (org-supplied secret) -
+          # see docs/operations.md "Repository protections". Public repos
+          # don't need one.
+
+  e2e:
+    name: Mandatory full-stack E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [go, frontend, docker, helm]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install kind, kubectl, helm
+        run: |
+          curl -sSL -o /usr/local/bin/kind "https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-amd64"
+          chmod +x /usr/local/bin/kind
+          curl -sSL -o /usr/local/bin/kubectl "https://dl.k8s.io/release/v1.37.0/bin/linux/amd64/kubectl"
+          chmod +x /usr/local/bin/kubectl
+          GOBIN="$(go env GOPATH)/bin" go install helm.sh/helm/v3/cmd/helm@v3.19.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - name: make e2e
+        run: make e2e
+      - name: Collect diagnostics on failure
+        if: failure()
+        run: |
+          kubectl --kubeconfig e2e/.kubeconfig get pods -A -o wide || true
+          kubectl --kubeconfig e2e/.kubeconfig describe pods -A || true
+        # Diagnostics only - never dumps Secrets/env values, per
+        # docs/spec/07-mandatory-automated-testing.md "Failure diagnostics
+        # are redacted."

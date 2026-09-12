@@ -1,0 +1,38 @@
+# Example values for a disposable local/dev cluster (e.g. the mandatory
+# E2E stack's kind cluster - see docs/local-development.md). Loopback-only
+# relaxations live here; nothing here belongs in production - see
+# values-prod-example.yaml for that starting point instead.
+replicaCount: 1
+
+image:
+  registry: localhost:5000
+  repository: tenantdeck
+  tag: dev
+  pullPolicy: IfNotPresent
+
+config:
+  externalURL: http://localhost:8080
+  # Loopback dev only - never set outside this file.
+  # See docs/spec/04-auth-session-browser-security.md.
+  insecure: true
+
+  oidc:
+    issuerURL: http://mock-oidc.tenantdeck-e2e.svc.cluster.local
+    clientID: tenantdeck-dev
+    existingSecret: tenantdeck-oidc-dev
+
+  session:
+    redis:
+      addr: valkey.tenantdeck-e2e.svc.cluster.local:6379
+    existingSecretEncryptionKey: tenantdeck-session-dev
+
+  upstream:
+    capsuleProxyURL: http://capsule-proxy.capsule-system.svc.cluster.local:9001
+
+networkPolicy:
+  # Disabled for quick local iteration. Re-enable (the chart default) and
+  # fill in the allow-lists before this leaves a disposable dev cluster.
+  enabled: false
+
+ingress:
+  enabled: false

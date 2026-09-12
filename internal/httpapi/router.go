@@ -20,6 +20,11 @@ import (
 func NewRouter(authHandler *auth.Handler, store *session.Store, capsuleClient *capsule.Client, insecure bool, frontend http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
+	// Kubernetes probes (docs/spec/06-container-and-kubernetes-deployment.md)
+	// - unauthenticated by convention, never session-gated.
+	mux.Handle("GET /healthz", livezHandler())
+	mux.Handle("GET /readyz", readyzHandler(store))
+
 	mux.HandleFunc("GET /auth/login", authHandler.LoginHandler)
 	mux.HandleFunc("GET /auth/callback", authHandler.CallbackHandler)
 	mux.HandleFunc("GET /auth/session", authHandler.SessionHandler)

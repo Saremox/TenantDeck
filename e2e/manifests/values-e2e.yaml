@@ -1,0 +1,74 @@
+# Chart values for the disposable E2E stack - see charts/tenantdeck/ci/
+# for the dev/production-shaped starting points this is deliberately
+# unlike (no TLS, a plaintext-friendly mock OIDC, kind-loaded images).
+replicaCount: 2
+
+image:
+  registry: ""
+  repository: tenantdeck
+  tag: e2e
+  pullPolicy: Never # kind load docker-image, not a registry pull
+
+config:
+  externalURL: http://tenantdeck.tenantdeck-e2e.svc.cluster.local:8080
+  insecure: true # loopback-equivalent for this disposable cluster only
+
+  oidc:
+    issuerURL: http://mockoidc.tenantdeck-e2e.svc.cluster.local:9999
+    clientID: e2e-client
+    existingSecret: tenantdeck-oidc
+
+  session:
+    redis:
+      addr: valkey.tenantdeck-e2e.svc.cluster.local:6379
+    existingSecretEncryptionKey: tenantdeck-session
+
+  upstream:
+    capsuleProxyURL: http://capsule-proxy.capsule-system.svc.cluster.local:9001
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from:
+      # Same-namespace access only, for the E2E test client reaching it
+      # via kubectl port-forward/exec - no ingress controller in this
+      # disposable stack.
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: tenantdeck-e2e
+  egress:
+    dns:
+      enabled: true
+    idp:
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tenantdeck-e2e
+          podSelector:
+            matchLabels:
+              app: mockoidc
+      ports:
+        - port: 9999
+          protocol: TCP
+    capsuleProxy:
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: capsule-system
+      ports:
+        - port: 9001
+          protocol: TCP
+    sessionStore:
+      to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: tenantdeck-e2e
+          podSelector:
+            matchLabels:
+              app: valkey
+      ports:
+        - port: 6379
+          protocol: TCP
+
+ingress:
+  enabled: false

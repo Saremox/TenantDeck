@@ -85,6 +85,18 @@ func TestRouter_DispatchesEachRouteToItsHandler(t *testing.T) {
 		t.Errorf("/api/namespaces status = %d, want %d", rec.Code, http.StatusUnauthorized)
 	}
 
+	// /healthz and /readyz: unauthenticated probes, not behind requireSession.
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("/healthz status = %d, want %d", rec.Code, http.StatusOK)
+	}
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/readyz", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("/readyz status = %d, want %d", rec.Code, http.StatusOK)
+	}
+
 	// Every response, including the 401s above, must carry the security
 	// headers - prove it on one of them.
 	if got := rec.Header().Get("Content-Security-Policy"); got == "" {

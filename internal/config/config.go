@@ -50,6 +50,12 @@ type SessionConfig struct {
 	RedisPassword string
 	RedisTLS      bool
 
+	// RedisCAFile, if set, is a path to a PEM file of additional CA
+	// certificates to trust for the Redis/Valkey TLS connection - for a
+	// private CA, rather than requiring a publicly trusted one. Only
+	// meaningful when RedisTLS is true. See config.SessionConfig.BuildRedisTLSConfig.
+	RedisCAFile string
+
 	// EncryptionKey is the AES-256-GCM key used to encrypt session
 	// records. Supplied separately from the store itself (CLAUDE.md "Code
 	// style" / docs/spec/04-auth-session-browser-security.md): compromising
@@ -108,6 +114,7 @@ func Load() (*Config, error) {
 		}
 		cfg.Session.RedisTLS = b
 	}
+	cfg.Session.RedisCAFile = os.Getenv("TENANTDECK_REDIS_CA_FILE")
 
 	keyB64 := req("TENANTDECK_SESSION_ENCRYPTION_KEY")
 	if keyB64 != "" {

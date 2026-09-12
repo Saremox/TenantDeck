@@ -39,6 +39,9 @@ web/dist/*
 !web/dist/.gitkeep
 web/*.tsbuildinfo
 
+# e2e/up.sh writes a real cluster kubeconfig here - credentials, never committed.
+e2e/.kubeconfig
+
 # Editor/IDE
 # .idea/
 # .vscode/

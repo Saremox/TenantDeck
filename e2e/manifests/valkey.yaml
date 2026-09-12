@@ -1,0 +1,40 @@
+# Disposable session store for the E2E stack only - docs/route-allowlist.md
+# "Test infrastructure provisions its own store," not a production
+# deployment pattern (no auth/TLS/persistence - see charts/tenantdeck's
+# own values.yaml for the production-shaped external-store config this
+# is standing in for).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          ports:
+            - containerPort: 6379
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+spec:
+  selector:
+    app: valkey
+  ports:
+    - port: 6379
+      targetPort: 6379

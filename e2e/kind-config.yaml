@@ -1,0 +1,14 @@
+# Disposable E2E cluster config (docs/spec/07-mandatory-automated-testing.md
+# item 1). disableDefaultCNI + the matching podSubnet are required so
+# Calico can be installed for real NetworkPolicy enforcement (kindnet,
+# kind's default CNI, does not enforce NetworkPolicy at all - see
+# docs/spec/07 "Do not mistake a rendered policy on a non-enforcing CNI
+# for enforcement testing").
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  disableDefaultCNI: true
+  podSubnet: 192.168.0.0/16
+nodes:
+  - role: control-plane
+  - role: worker

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "tenantdeck.fullname" . }}-test-connection"
+  labels:
+    {{- include "tenantdeck.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  # Same hardening standard as the main Deployment -
+  # docs/spec/06-container-and-kubernetes-deployment.md: "Apply the same
+  # standards to TenantDeck chart hooks/test pods."
+  securityContext:
+    {{- toYaml .Values.podSecurityContext | nindent 4 }}
+  automountServiceAccountToken: false
+  containers:
+    - name: wget
+      image: {{ .Values.tests.image }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      command:
+        - wget
+        - "--spider"
+        - "-T"
+        - "5"
+        - {{ printf "http://%s:%d%s" (include "tenantdeck.fullname" .) (.Values.service.port | int) .Values.probes.liveness.path | quote }}
+  restartPolicy: Never

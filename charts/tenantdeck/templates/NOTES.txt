@@ -1,0 +1,34 @@
+TenantDeck has been installed as {{ .Release.Name }} in namespace {{ .Release.Namespace }}.
+
+1. Check rollout status:
+   kubectl -n {{ .Release.Namespace }} rollout status deployment/{{ include "tenantdeck.fullname" . }}
+
+2. Reach it:
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+   https://{{ .host }}{{ (first .paths).path }}
+{{- end }}
+{{- else }}
+   No Ingress is enabled (ingress.enabled=false). Reach the Service from
+   inside the cluster at {{ include "tenantdeck.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.service.port }},
+   or port-forward for a quick check:
+   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "tenantdeck.fullname" . }} 8080:{{ .Values.service.port }}
+{{- end }}
+
+{{- if .Values.networkPolicy.enabled }}
+3. NetworkPolicy is enabled. An empty `networkPolicy.ingress.from` or any
+   empty `networkPolicy.egress.*.to` list means exactly that traffic
+   direction is denied, not "allowed" - if TenantDeck can't be reached, or
+   can't reach the IdP/Capsule Proxy/session store, check those values
+   first. See docs/operations.md "NetworkPolicy" for worked examples and
+   CNI/DNS-rotation caveats.
+{{- else }}
+3. NetworkPolicy is disabled (networkPolicy.enabled=false). Re-enable it
+   for anything beyond local development - see
+   docs/spec/06-container-and-kubernetes-deployment.md.
+{{- end }}
+
+4. This chart creates no Role/ClusterRole/RoleBinding/ClusterRoleBinding
+   and disables ServiceAccount token automount - TenantDeck never calls
+   the Kubernetes API directly (docs/spec/05-upstream-boundary-and-resilience.md).
+   Capsule/capsule-proxy are separate, separately installed components.
