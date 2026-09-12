@@ -150,6 +150,12 @@ too, not just a test-writing checklist:
   it.
 - A comment is never a substitute for the fix itself — "TODO: validate this"
   next to unvalidated input is a finding, not documentation.
+- Flag code that is clever or dense enough to obscure a security-relevant
+  check — an attacker-relevant bug hiding in code a reviewer can't quickly
+  read is itself a finding. A micro-optimization around auth/session/
+  upstream-boundary logic needs a concrete, stated reason (see `CLAUDE.md`
+  "Code style" — readability is the default here); if it doesn't have one,
+  that's worth raising even if the logic happens to be correct.
 
 ## After the review
 

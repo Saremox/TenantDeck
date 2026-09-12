@@ -138,6 +138,11 @@ distinct names would hide), why a wait uses a driven clock instead of a
 way. Don't caption each assertion with what it asserts — that's what the
 assertion already says.
 
+A test proving a security boundary is read far more often than it's changed
+— prefer an explicit, slightly repetitive test over a clever generic harness
+that hides which case is which. If a table-driven test's table gets hard to
+read at a glance, that's a sign to split it, not to compress it further.
+
 ## After writing tests
 
 Update `docs/security-test-matrix.md`: fill in the `Test(s)` and `Evidence`

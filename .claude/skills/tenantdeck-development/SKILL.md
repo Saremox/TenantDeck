@@ -64,6 +64,12 @@ cluster/Capsule Proxy per installation — no multi-cluster abstraction.
 - **Don't build abstractions this spec doesn't ask for** — no multi-cluster
   support, plugin framework, billing integration, or Prometheus integration
   in v1.
+- **Readability beats performance — see `CLAUDE.md` "Code style."** Write
+  the straightforward version; don't micro-optimize without a measured
+  reason. The one exception is the upstream size/concurrency/timeout bounds
+  in `docs/spec/05-upstream-boundary-and-resilience.md` — those are security
+  requirements, not performance tuning, and stay even when a simpler
+  unbounded version would read more cleanly.
 - Write tests alongside the feature, not after — see the
   `tenantdeck-testing` skill for required coverage. A feature isn't done
   without them.

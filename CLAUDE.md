@@ -46,6 +46,24 @@ and rationale is in `docs/spec/`.
 
 ## Code style
 
+Readability and maintainability are the priority. A human should be able to
+read a function top to bottom and know what it does; performance is a
+secondary concern, not a default design constraint.
+
+- Prefer the straightforward implementation over the clever or
+  micro-optimized one. Don't hand-roll a faster version of something a
+  standard library or maintained dependency already does clearly.
+- Don't optimize for performance without a concrete, measured reason
+  (a profiled hot path, a documented latency/throughput requirement). If
+  there isn't one, write the version that's easiest to read.
+- Favor short, single-purpose functions over one function doing several
+  things for the sake of avoiding a call. A few extra lines that make the
+  control flow obvious beat a dense one-liner that doesn't.
+- This still has limits set elsewhere: upstream request/response size and
+  concurrency bounds are security requirements
+  (`docs/spec/05-upstream-boundary-and-resilience.md`), not a performance
+  nice-to-have — don't drop them for simplicity.
+
 Names carry meaning; comments carry context the code can't. Concretely:
 
 - Name variables, functions, and types so the reader doesn't need a comment
