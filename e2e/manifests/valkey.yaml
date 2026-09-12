@@ -18,6 +18,15 @@ spec:
         app: valkey
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        # valkey/valkey's entrypoint only needs setpriv (not present in the
+        # alpine image, so it's not just unnecessary but fatal - "exit code
+        # 127, command not found") to drop from root to the image's own
+        # valkey user (uid 999, gid 1000). Running as that uid/gid directly
+        # skips that step entirely.
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
       containers:
         - name: valkey
           image: valkey/valkey:8-alpine
