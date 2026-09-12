@@ -126,6 +126,18 @@ short configured TTLs in the test environment instead.
       secrets); teardown happens on both success and failure, and is scoped
       only to resources this test run created.
 
+## Comments in tests (see `CLAUDE.md` "Code style")
+
+Same rule as application code: the test name and the assertion should carry
+the *what* — `TestRefreshFailsClosedWhenStoreUnavailable`, not `TestRefresh`
+with a comment explaining the case. Reserve comments for the *why* when it
+isn't obvious: why a fixture is shaped a particular way (e.g. two tenants
+with overlapping resource names, specifically to catch an isolation bug that
+distinct names would hide), why a wait uses a driven clock instead of a
+`sleep`, or why a negative case is expected to fail in a specific, non-obvious
+way. Don't caption each assertion with what it asserts — that's what the
+assertion already says.
+
 ## After writing tests
 
 Update `docs/security-test-matrix.md`: fill in the `Test(s)` and `Evidence`

@@ -138,6 +138,19 @@ too, not just a test-writing checklist:
   live lookup/Capsule Proxy-scoped call), not a client-supplied namespace
   name or a trusted JWT claim asserting a tenant name?
 
+## Lens 6 — Comments (see `CLAUDE.md` "Code style")
+
+- Flag comments that only restate the next line — they should be deleted,
+  not left as noise in a security-sensitive diff.
+- Flag a *missing* comment where a security-relevant why isn't obvious from
+  the code alone — e.g. a header strip, a fail-closed branch, or a
+  deliberate deviation from the spec's default. The reviewer should not have
+  to reconstruct the rationale from the spec every time; a one-line why at
+  the decision point is cheap insurance against a future "cleanup" removing
+  it.
+- A comment is never a substitute for the fix itself — "TODO: validate this"
+  next to unvalidated input is a finding, not documentation.
+
 ## After the review
 
 List findings as concrete exploit scenarios, ranked by what an attacker
