@@ -30,10 +30,7 @@ spec:
 # no fixture object needed for that case.
 #
 # The per-tenant namespaces themselves aren't declared here: Capsule's
-# namespace admission webhook only accepts the "capsule.clastix.io/tenant"
-# label together with an ownerReference to the owning Tenant, a pairing
-# normally set atomically by capsule-proxy's mutating webhook when a
-# tenant owner creates their own namespace. Pre-provisioning one as
-# cluster admin (bypassing capsule-proxy, as this disposable E2E fixture
-# step does) means setting both by hand after the Tenant's UID exists -
-# see e2e/up.sh's "Applying two-tenant Capsule fixtures" step.
+# admission webhooks only let a Tenant's own owner create its namespace
+# (and set the tenant label/ownerReference themselves when they do) - see
+# e2e/up.sh's "Applying two-tenant Capsule fixtures" step, which creates
+# them impersonating each owner above.

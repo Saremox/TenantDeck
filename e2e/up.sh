@@ -95,31 +95,17 @@ echo "==> Applying two-tenant Capsule fixtures (docs/spec/07 item 6)"
 # TLS/in-cluster-reachability details right, which this sandbox can't do).
 kubectl apply -f "$HERE/fixtures/tenants.yaml"
 
-# Capsule's namespace admission webhook rejects a namespace carrying the
-# tenant label without an ownerReference to that Tenant - capsule-proxy's
-# mutating webhook normally sets both together when a tenant owner
-# creates their own namespace. Provisioning one as cluster admin (there
-# is no tenant-owner identity to impersonate here yet - see the gap
-# above) means setting both in the same create, once the Tenant's real
-# UID exists to reference.
-for ns_tenant in tenant-a-dev:tenant-a tenant-b-dev:tenant-b; do
-  ns="${ns_tenant%%:*}"
-  tenant="${ns_tenant##*:}"
-  tenant_uid="$(kubectl get tenant "$tenant" -o jsonpath='{.metadata.uid}')"
-  kubectl apply -f - <<EOF
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: $ns
-  labels:
-    capsule.clastix.io/tenant: $tenant
-  ownerReferences:
-    - apiVersion: capsule.clastix.io/v1beta2
-      kind: Tenant
-      name: $tenant
-      uid: $tenant_uid
-EOF
-done
+# Capsule's namespace admission webhooks require the *requesting user* to
+# be the Tenant's own owner - a plain cluster-admin create is rejected
+# ("only tenant owners can create tenant-owned namespaces") even with a
+# correct label+ownerReference set by hand. kind's admin kubeconfig is in
+# system:masters, which bypasses the impersonation RBAC check, so
+# `--as=<owner>` lets it create the namespace as that owner without any
+# real OIDC identity - at which point Capsule's mutating webhook sets the
+# tenant label and ownerReference itself, the same as it would for a
+# request arriving through capsule-proxy.
+kubectl --as=alice@tenant-a.example.com create namespace tenant-a-dev
+kubectl --as=bob@tenant-b.example.com create namespace tenant-b-dev
 
 echo "==> Creating the existing-Secret references the chart requires"
 kubectl -n tenantdeck-e2e create secret generic tenantdeck-oidc \
