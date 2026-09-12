@@ -67,6 +67,10 @@ cluster/Capsule Proxy per installation — no multi-cluster abstraction.
 - Write tests alongside the feature, not after — see the
   `tenantdeck-testing` skill for required coverage. A feature isn't done
   without them.
+- **Comments document why, not what — see `CLAUDE.md` "Code style."** Name
+  things so the code reads without narration; reserve comments for a
+  non-obvious constraint or rationale (e.g. why a header must never be
+  forwarded), not a restatement of the next line.
 
 ## Workflow
 

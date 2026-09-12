@@ -44,6 +44,26 @@ and rationale is in `docs/spec/`.
   [`docs/spec/11-primary-references.md`](docs/spec/11-primary-references.md))
   before pinning dependency/API versions. Never invent an available version.
 
+## Code style
+
+Names carry meaning; comments carry context the code can't. Concretely:
+
+- Name variables, functions, and types so the reader doesn't need a comment
+  to know *what* they do. If a name needs a comment to explain its purpose,
+  rename it instead of commenting it.
+- Don't write comments that restate the code (`// increment counter` above
+  `counter++`). If removing a comment loses no information, delete it.
+- Write a comment only for the **why** when it isn't obvious from reading the
+  code: a non-obvious constraint, a workaround for a specific upstream bug,
+  a security-relevant invariant, a deliberate deviation from the "obvious"
+  approach. Example worth a comment: *why* a header is stripped before
+  forwarding upstream (security boundary) — not *that* it's stripped.
+- No comments referencing the current task, a ticket, or "added for X" — that
+  belongs in the commit message/PR description and rots as the code evolves.
+- No doc blocks that restate a function's signature in prose. If a function's
+  contract is genuinely non-obvious (e.g. partial failure behavior, what it
+  does on a closed session store), document *that*, briefly.
+
 ## Skills for this repo
 
 - `tenantdeck-development` — implementing BFF/frontend/chart/Dockerfile code against the architecture and security constraints.
