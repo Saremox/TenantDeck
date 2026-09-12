@@ -15,7 +15,44 @@ commands, both called identically by CI:
 
 **Do not pursue a coverage percentage instead of testing security
 boundaries.** A boundary without a test that actually tries to cross it is
-not verified, no matter how high coverage reads.
+not verified, no matter how high coverage reads. That said: **target 100%
+line coverage on the BFF** (the Go module — not the frontend, not generated
+code). Coverage is a floor reached by meaningful tests, not a goal to pad:
+if a line only gets covered by a test with no real assertion, that's not
+progress toward the target, and if a line genuinely can't be exercised by a
+meaningful test, that's usually a sign it's dead code or an unreachable
+branch worth removing rather than a gap to paper over.
+
+Prefer writing the test before or alongside the implementation (TDD),
+especially for anything in the required coverage list below — it's the
+cheapest way to be sure the boundary is actually being tested, not just
+described. This isn't mandatory for every line of glue code, but default to
+it for security-relevant logic.
+
+Don't over-test: one well-placed test per behavior is enough. Don't add a
+second test (at the same or a different layer) that re-asserts something an
+existing test already proves, "just to be safe" — that's cost (slower
+suite, more churn on every change) without a corresponding gain. If you're
+tempted to add a redundant test, that's usually a sign the existing test is
+in the wrong place (e.g. a unit-testable case currently only covered at the
+E2E layer) — move it, don't duplicate it.
+
+## Test size and naming
+
+- **One test, one concern.** A test proves one specific behavior or
+  boundary. If you're describing a test with "and" ("it logs in and checks
+  the cookie and also rejects a bad nonce"), split it.
+- No 200-line tests covering multiple aspects. If a test function is
+  sprawling, that's a sign it's actually several tests glued together —
+  split it into focused tests that can each fail for exactly one reason.
+- The test name alone should tell a reader what's being verified —
+  `TestLogout_DeletesSessionServerSide`, `TestCallback_RejectsReplayedCode`,
+  not `TestLogin` or `TestSession2`. If the name genuinely can't carry the
+  scenario (e.g. a subtle edge case), add a 1-2 line comment directly above
+  the test stating what it verifies — don't leave the reader to infer it
+  from the body. This is the one place a short *what* is welcome; see
+  "Comments in tests" below for the *why* rule that still applies to
+  everything else in the test.
 
 ## Unit/integration coverage (required, not optional)
 
@@ -129,14 +166,17 @@ short configured TTLs in the test environment instead.
 ## Comments in tests (see `CLAUDE.md` "Code style")
 
 Same rule as application code: the test name and the assertion should carry
-the *what* — `TestRefreshFailsClosedWhenStoreUnavailable`, not `TestRefresh`
-with a comment explaining the case. Reserve comments for the *why* when it
-isn't obvious: why a fixture is shaped a particular way (e.g. two tenants
-with overlapping resource names, specifically to catch an isolation bug that
-distinct names would hide), why a wait uses a driven clock instead of a
-`sleep`, or why a negative case is expected to fail in a specific, non-obvious
-way. Don't caption each assertion with what it asserts — that's what the
-assertion already says.
+the *what* whenever a name can express it —
+`TestRefreshFailsClosedWhenStoreUnavailable`, not `TestRefresh` with a
+comment explaining the case. When the name alone can't (see "Test size and
+naming" above), a brief 1-2 line *what* comment above the test is the
+accepted exception — better than a misleadingly generic name. Beyond that,
+reserve comments for the *why*: why a fixture is shaped a particular way
+(e.g. two tenants with overlapping resource names, specifically to catch an
+isolation bug that distinct names would hide), why a wait uses a driven
+clock instead of a `sleep`, or why a negative case is expected to fail in a
+specific, non-obvious way. Don't caption each assertion with what it
+asserts — that's what the assertion already says.
 
 A test proving a security boundary is read far more often than it's changed
 — prefer an explicit, slightly repetitive test over a clever generic harness
@@ -145,7 +185,10 @@ read at a glance, that's a sign to split it, not to compress it further.
 
 ## After writing tests
 
-Update `docs/security-test-matrix.md`: fill in the `Test(s)` and `Evidence`
-columns for every row this work covers, and flip `Status` to `covered` only
-once the test actually passes locally (or in CI) — not on the strength of
-having written it.
+- Update `docs/security-test-matrix.md`: fill in the `Test(s)` and
+  `Evidence` columns for every row this work covers, and flip `Status` to
+  `covered` only once the test actually passes locally (or in CI) — not on
+  the strength of having written it.
+- Check BFF coverage (`go test -cover`/`-coverprofile`) for the package you
+  touched. Report the actual number — don't claim 100% without having run
+  it.

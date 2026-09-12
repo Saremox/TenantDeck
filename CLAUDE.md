@@ -82,6 +82,20 @@ Names carry meaning; comments carry context the code can't. Concretely:
   contract is genuinely non-obvious (e.g. partial failure behavior, what it
   does on a closed session store), document *that*, briefly.
 
+## Testing philosophy
+
+Full detail in the `tenantdeck-testing` skill; the durable rules:
+
+- Target **100% line coverage on the BFF**, reached through real,
+  meaningful tests — not padding. Prefer writing the test before or
+  alongside the implementation (TDD), especially for security-boundary
+  logic.
+- Don't over-test: one well-placed test per behavior, not the same
+  assertion repeated across layers "to be safe."
+- **One test, one concern.** No 200-line tests covering several aspects —
+  split them. The test name alone should say what's being verified; if it
+  can't, add a 1-2 line comment above the test stating what it checks.
+
 ## Skills for this repo
 
 - `tenantdeck-development` — implementing BFF/frontend/chart/Dockerfile code against the architecture and security constraints.
