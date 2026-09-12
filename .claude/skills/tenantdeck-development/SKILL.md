@@ -37,6 +37,8 @@ cluster/Capsule Proxy per installation — no multi-cluster abstraction.
 | Capsule Proxy client: header allowlisting, path/verb validation, limits, isolation | `docs/spec/05-upstream-boundary-and-resilience.md` |
 | Dockerfile, Pod/container securityContext, Helm chart, NetworkPolicy | `docs/spec/06-container-and-kubernetes-deployment.md` |
 | CI workflows, least privilege, vulnerability policy, release workflow | `docs/spec/08-github-actions-and-supply-chain.md` |
+| The exact BFF route → upstream resource/subresource/verb mapping | `docs/route-allowlist.md` — implement *exactly* this, update it in the same change if a route changes |
+| Dependency/version decisions already made (Go, OIDC lib, session client, frontend tooling, Capsule/kind versions) | `docs/implementation-plan.md` "Decisions / ADRs" — don't re-pick a different library without recording why |
 
 ## Non-negotiables while implementing (see `CLAUDE.md` for the full list)
 

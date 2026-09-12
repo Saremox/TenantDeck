@@ -3,11 +3,15 @@
 TenantDeck is a security-first, read-only customer dashboard for an existing
 Capsule multi-tenant Kubernetes platform. Tagline: *Your slice of Kubernetes.*
 
-**Status: bootstrap only.** No application code exists yet — this session set
-up the spec, docs, and skills an implementing agent needs. The full
-requirements live in [`docs/spec/`](docs/spec/README.md), split by topic from
-the original kickoff prompt. Read that index before writing code; it is
-normative, this file is just the condensed, always-relevant summary.
+**Status: Phase 1 (inspection and planning) done, no application code yet.**
+The full requirements live in [`docs/spec/`](docs/spec/README.md), split by
+topic from the original kickoff prompt — read that index before writing
+code; it is normative, this file is just the condensed, always-relevant
+summary. The dependency set is decided
+([`docs/implementation-plan.md`](docs/implementation-plan.md) ADRs) and the
+concrete route allowlist exists
+([`docs/route-allowlist.md`](docs/route-allowlist.md)) — implement against
+those rather than re-deciding them.
 
 ## Durable constraints (non-negotiable)
 
@@ -27,7 +31,9 @@ and rationale is in `docs/spec/`.
   verbs) built from validated parameters, with outbound headers built from an
   explicit allowlist — never forward incoming `Authorization`, `Cookie`,
   `Impersonate-*`, or other forwarding headers. See
-  [`docs/spec/05-upstream-boundary-and-resilience.md`](docs/spec/05-upstream-boundary-and-resilience.md).
+  [`docs/spec/05-upstream-boundary-and-resilience.md`](docs/spec/05-upstream-boundary-and-resilience.md)
+  and the concrete allowlist in
+  [`docs/route-allowlist.md`](docs/route-allowlist.md).
 - **No in-cluster credentials for TenantDeck itself.** The Helm chart creates
   no Role/ClusterRole/RoleBinding/ClusterRoleBinding, disables SA token
   automount at both SA and Pod level, and runs as non-root (UID/GID 65532)

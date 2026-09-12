@@ -47,6 +47,7 @@ written, and keep `Status` honest (`missing` / `in progress` / `covered`).
 | 34 | Each required UI state (empty/loading/forbidden/expired-session/unavailable-upstream) renders distinctly for its condition | spec/02 | | | missing |
 | 35 | Frontend API client maps 401/403/5xx/network failure to the correct UI state | spec/02 | | | missing |
 | 36 | Automated accessibility checks (axe-core) pass with zero serious/critical violations on required views | spec/02 | | | missing |
+| 37 | Every route in `docs/route-allowlist.md` rejects every verb/subresource/resource not listed for it, before the upstream client runs | route-allowlist | | | missing |
 
 Add rows as the spec is refined or new findings surface during the
 adversarial review phase (`docs/spec/10-process-and-definition-of-done.md`,

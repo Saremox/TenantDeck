@@ -33,8 +33,9 @@ them.
 ## Related project docs
 
 - `CLAUDE.md` — condensed durable constraints and project commands.
-- `docs/implementation-plan.md` — living progress tracker against the execution sequence.
+- `docs/implementation-plan.md` — living progress tracker against the execution sequence, including the dependency-set ADRs.
 - `docs/security-test-matrix.md` — living map of requirements in this spec to actual tests.
+- `docs/route-allowlist.md` — the concrete BFF route → upstream call allowlist required by section 10's execution sequence.
 - `SECURITY.md`, `docs/architecture.md`, `docs/threat-model.md`,
   `docs/local-development.md`, `docs/operations.md` — required by section 9
   ([Documentation and threat model](09-documentation-and-threat-model.md));
