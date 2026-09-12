@@ -5,16 +5,21 @@ Living progress tracker against the execution sequence in
 Update this file whenever a phase advances — do not let it drift from what is
 actually merged.
 
-**Status: Phase 4 (hardened image/chart + E2E stack) done for what this
-session's sandbox could build, run, and verify — further than Phases 1-3,
-because this session's sandbox actually had a working Docker daemon (see
-below), but still genuinely blocked from a live Kubernetes cluster by two
-independently diagnosed limits.** The Dockerfile, the Helm chart, and
-`cmd/mockoidc` are real, built, and exercised against running
-processes/containers — not just written. The mandatory E2E stack
-(`e2e/`) is fully authored and reasoned through but has not completed an
-actual run; see "Known blockers" for the precise, reproduced evidence
-for both limits, so this isn't taken on faith.
+**Status: Phase 4 (hardened image/chart + E2E stack) done, and the
+mandatory E2E stack has now actually run to green in GitHub Actions CI**
+(`verify.yml`'s "Mandatory full-stack E2E" job, first passing run
+2026-09-12) — a real kind cluster, real Calico, cert-manager, Capsule
+operator/proxy, Valkey, and the actual built image/chart, two replicas,
+with `login_test.go`/`hardening_test.go` passing against it. This
+repo's own dev sandbox still can't run any of that directly (see "Known
+blockers" for the two independently diagnosed limits, unchanged), which
+is why getting there took several CI-only diagnose/fix/push/verify
+rounds instead of local iteration - each CI failure was read from real
+job logs, fixed, and re-verified by watching the next run, not guessed
+at. Tenant-isolation and NetworkPolicy-enforcement assertions
+(`docs/security-test-matrix.md` rows 17, 22) are still not written as
+tests, even though the fixtures/infrastructure they'd run against now
+provision successfully for real.
 
 **Correction to every earlier phase's "Known blockers":** Phase 1-3
 repeatedly recorded "no Docker daemon in this session's execution
@@ -87,14 +92,29 @@ for exactly what is and isn't reachable even with Docker working.
       own JWKS; and a real full HTTP cookie-jar login → session →
       `/api/namespaces` (502, not 401) → logout → denied-reuse round trip
       between the real `tenantdeck` and `mockoidc` binaries. The mandatory
-      E2E stack (`e2e/`: kind + Calico + Capsule + Valkey + the chart + two
-      replicas + `login_test.go`/`hardening_test.go`) and the GitHub Actions
-      workflows (`.github/workflows/verify.yml`, `release.yml`, SHA-pinned
-      third-party Actions, least-privilege permissions, `make e2e` as the
-      one path CI and a human both run) are fully authored but **not
-      executed end-to-end** - see "Known blockers" for the two independent,
-      reproduced reasons. `docs/architecture.md` and `docs/operations.md`
-      are written for real against what was actually built and verified.
+      E2E stack (`e2e/`: kind + Calico + cert-manager + Capsule + Valkey +
+      the chart + two replicas + `login_test.go`/`hardening_test.go`) and
+      the GitHub Actions workflows (`.github/workflows/verify.yml`,
+      `release.yml`, SHA-pinned third-party Actions, least-privilege
+      permissions, `make e2e` as the one path CI and a human both run)
+      **have now run end-to-end for real in GitHub Actions CI** -
+      `verify.yml`'s "Mandatory full-stack E2E" job passed for the first
+      time 2026-09-12, after five rounds of reading a real CI failure,
+      fixing its root cause, and pushing to watch the next run (`go:embed`
+      on an empty `dist/`, `govulncheck` against a pinned stdlib patch,
+      `/usr/local/bin` not writable on the runner image, cert-manager
+      missing as a Capsule-chart prerequisite, the Valkey image's
+      entrypoint needing a missing `setpriv` to de-escalate from root,
+      Capsule's namespace admission requiring both a correct
+      label+ownerReference *and* the requesting user to be the Tenant's
+      own owner, that owner needing its own namespace-create RBAC, and
+      finally the OIDC redirect chain needing TenantDeck's and mockoidc's
+      real in-cluster hostnames reachable from the test process, not just
+      a port-forwarded localhost address). This repo's own dev sandbox
+      still can't run any of it directly - see "Known blockers" for the
+      two independent, reproduced reasons, unchanged by the above.
+      `docs/architecture.md` and `docs/operations.md` are written for real
+      against what was actually built and verified.
 - [ ] **5. Adversarial security review** — run the `tenantdeck-security-review`
       skill against `docs/threat-model.md`; fix findings with regression
       tests, not just writeups.
@@ -308,22 +328,32 @@ section grows unwieldy) as they're made.
     proving real PKCE enforcement, single-use authorization codes, and
     refresh, with ID token signatures verified against the server's own
     published JWKS.
-  - `e2e/` (kind + Calico + Capsule + Valkey + the chart + `login_test.go`/
-    `hardening_test.go`) is fully authored for a normal CI runner or
-    developer machine (neither limit above is specific to Kubernetes or
-    to TenantDeck's own code) but **has not completed a run**. Do not
-    claim it has without actually running it — see `e2e/README.md`.
+  - `e2e/` (kind + Calico + cert-manager + Capsule + Valkey + the chart +
+    `login_test.go`/`hardening_test.go`) **has run and passed** on a
+    normal CI runner (GitHub Actions, `verify.yml`, 2026-09-12) - neither
+    limit above is specific to Kubernetes or to TenantDeck's own code, so
+    a real runner was never blocked by them. It still has not run inside
+    this repo's own dev sandbox, which remains blocked by both limits -
+    see `e2e/README.md` for exactly what that sandbox can and can't do.
   - The full login/nonce/PKCE/replay/expiry round trip **is** separately
     verified for real, with real RS256-signed tokens and real
     discovery/JWKS, by `internal/auth`'s own test suite
     (`testop_test.go`'s minimal test-only OP) — that part never depended
     on any of the above.
-- **`e2e/fixtures/tenants.yaml`'s Capsule `Tenant` owners aren't actually
-  wired to anything yet.** Capsule Proxy scopes a request by the identity
-  kube-apiserver's own OIDC authentication resolves — not by re-validating
-  the bearer token itself — so kube-apiserver needs its own `--oidc-*`
-  flags pointed at `cmd/mockoidc` for `owners[].name` to ever match a real
-  login. Getting the TLS-only issuer-URL requirement and in-cluster
+- **`e2e/fixtures/tenants.yaml`'s Capsule `Tenant` owners still aren't
+  wired to real OIDC identities.** `e2e/up.sh` now provisions each
+  owner's namespace for real in CI - by impersonating the owner
+  (`kubectl --as=<owner>`, which kind's `system:masters` admin kubeconfig
+  can do without any real identity behind it) and granting that
+  impersonated identity its own namespace-create RBAC, so Capsule's
+  admission webhooks see a consistent, correctly-labeled,
+  correctly-owned namespace. That's a deliberate stand-in for identity,
+  not a fix for the underlying gap: Capsule Proxy scopes a request by
+  the identity kube-apiserver's own OIDC authentication resolves — not
+  by re-validating the bearer token itself — so kube-apiserver still
+  needs its own `--oidc-*` flags pointed at `cmd/mockoidc` before a real
+  browser login through mockoidc would ever resolve to one of these
+  owners. Getting the TLS-only issuer-URL requirement and in-cluster
   reachability (kube-apiserver's static pod is `hostNetwork`, so it can't
   resolve a Service DNS name the way a normal Pod can) right needs
   real cluster iteration this session couldn't do (see above) — sketched

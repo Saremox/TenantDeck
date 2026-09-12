@@ -3,16 +3,19 @@
 TenantDeck is a security-first, read-only customer dashboard for an existing
 Capsule multi-tenant Kubernetes platform. Tagline: *Your slice of Kubernetes.*
 
-**Status: Phase 4 (hardened image/chart + E2E stack) done for what this
-session could build and run** — the full v1 API/frontend (Phases 2-3), a
-hardened Dockerfile/Helm chart verified against a real running container,
-and a real standalone mock OIDC provider (`cmd/mockoidc`) proven against
-the real binaries via a full HTTP cookie-jar login round trip, all as
-working, tested code. The mandatory E2E stack (`e2e/`) is fully authored
-but has not completed a run, and none of this has been validated against
-a real Capsule Proxy/cluster — see `docs/implementation-plan.md` "Known
-blockers" for exactly why (two independently diagnosed environment
-limits, not a design gap). The full requirements live in
+**Status: Phase 4 (hardened image/chart + E2E stack) done, and the
+mandatory E2E stack has now run end-to-end for real** — in GitHub
+Actions CI (`verify.yml`'s "Mandatory full-stack E2E" job), against a
+real kind cluster with a real Calico, cert-manager, Capsule operator/
+proxy, Valkey, and the actual built image/chart: `make e2e` completes
+and `login_test.go`/`hardening_test.go` pass against it. This session's
+own dev sandbox still can't run it directly (two independently diagnosed
+environment limits - see `docs/implementation-plan.md` "Known
+blockers"), which is why it took several CI-only fix/push/verify rounds
+to get green rather than local iteration. Tenant-isolation and
+NetworkPolicy-enforcement *tests* (`docs/security-test-matrix.md` rows
+17, 22) are still not written, even though the infrastructure they'd run
+against now stands up successfully. The full requirements live in
 [`docs/spec/`](docs/spec/README.md), split by topic from the original
 kickoff prompt — read that index before writing code; it is normative,
 this file is just the condensed, always-relevant summary. The dependency
@@ -138,17 +141,18 @@ required env vars, and troubleshooting:
   ./cmd/tenantdeck`.
 - `make run` — `go run ./cmd/tenantdeck` (needs env vars exported first).
 - `make e2e` — the mandatory disposable full-stack E2E suite (kind +
-  Calico + Capsule + mock OIDC + Valkey + the built image/chart, two
-  replicas) from `docs/spec/07-mandatory-automated-testing.md`. Fully
-  implemented (`e2e/`) but **has not completed an actual run** — see
-  `docs/implementation-plan.md` "Known blockers" for the two
-  independently diagnosed environment limits that blocked it in this
-  session, and `e2e/README.md` for what was verified outside a cluster
-  instead. Do not claim it has passed without actually running it.
+  Calico + cert-manager + Capsule + mock OIDC + Valkey + the built image/
+  chart, two replicas) from `docs/spec/07-mandatory-automated-testing.md`.
+  **Has run and passed for real in GitHub Actions CI** (`verify.yml`'s
+  "Mandatory full-stack E2E" job) — not yet run inside this repo's own
+  dev sandbox, which can't start a live cluster at all (see
+  `docs/implementation-plan.md` "Known blockers"); `e2e/README.md` has
+  the details and what a sandbox-only session can still verify instead.
 
-CI (`.github/workflows/verify.yml`, `release.yml`) calls `make
-verify`/`make e2e`, not a separate path — also unexecuted by an actual
-CI run so far (see `docs/operations.md` "Releasing").
+CI (`.github/workflows/verify.yml`) calls `make verify`/`make e2e`, not a
+separate path, and has run both to green on `main`. `release.yml` shares
+the workflow but only triggers on a `v*` tag push, which hasn't happened
+yet — see `docs/operations.md` "Releasing".
 
 ## Living docs to keep current
 

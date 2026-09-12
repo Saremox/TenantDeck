@@ -29,16 +29,32 @@ filesystem), not just the chart's rendered YAML.
 
 ## What has and hasn't actually been run
 
-**Authored and reasoned through carefully; not executed end-to-end in
-this repository's own development session.** Two independent,
-fully-diagnosed environment limits of that specific sandbox blocked it -
-see `docs/implementation-plan.md` Phase 4 "Known blockers" for the exact
-evidence:
+**Has run end-to-end and passed for real, in GitHub Actions CI**
+(`verify.yml`'s "Mandatory full-stack E2E" job, first green run
+2026-09-12) - a real kind cluster, real Calico, cert-manager, Capsule
+operator/proxy, Valkey, and the actual built image/chart, two replicas,
+with `login_test.go` and `hardening_test.go` passing against it. Getting
+there took several rounds of reading a real CI failure from job logs,
+fixing its actual root cause, and pushing to watch the next run - among
+them: cert-manager missing as a prerequisite for the Capsule chart's
+webhook TLS, the Valkey image's entrypoint needing a `setpriv` binary the
+alpine image doesn't ship, Capsule's namespace admission requiring both
+a correct label/ownerReference *and* the requesting identity to be the
+Tenant's own owner (plus that owner's own namespace-create RBAC), and the
+OIDC redirect chain needing TenantDeck's and mockoidc's real in-cluster
+Service hostnames reachable from the test process itself, not just a
+port-forwarded localhost address.
 
-1. This sandbox's egress policy blocks the blob-storage CDN behind
+**Still not run inside this repository's own dev sandbox** - two
+independent, fully-diagnosed environment limits of that specific sandbox
+block it there (neither is specific to Kubernetes or a normal CI
+runner/developer machine) - see `docs/implementation-plan.md` Phase 4
+"Known blockers" for the exact evidence:
+
+1. That sandbox's egress policy blocks the blob-storage CDN behind
    `ghcr.io` (where Capsule's images are published) - confirmed directly,
    not assumed.
-2. Even working around (1) wouldn't have been enough: this sandbox's
+2. Even working around (1) wouldn't have been enough: that sandbox's
    container runtime cannot start a third level of nested containers
    (`docker` → kind's privileged node container → that node's own
    containerd/runc trying to start a Pod's sandbox) - confirmed with
@@ -46,8 +62,8 @@ evidence:
    on a plain `ctr run`, independent of Kubernetes version or the
    cgroup v1/v2 kubelet requirement also hit along the way.
 
-What *was* verified for real in that session, outside a Kubernetes
-cluster entirely: the built Docker image running under
+What *can* still be verified from a sandbox blocked like that, outside a
+Kubernetes cluster entirely: the built Docker image running under
 `--read-only --user 65532:65532 --cap-drop ALL --security-opt
 no-new-privileges`, serving `/healthz`/`/readyz`/`/auth/session`/`/`/`/api/namespaces`
 correctly; `cmd/mockoidc`'s own real PKCE-enforcing authorization-code +
@@ -55,12 +71,6 @@ refresh flow (`go test ./cmd/mockoidc/...`); and a full real HTTP
 cookie-jar login → session → logout → denied-cookie-reuse round trip
 between the real `tenantdeck` and `mockoidc` binaries and a real
 `redis-server`, with zero token material appearing in the process logs.
-
-Run this on a normal GitHub Actions runner or a developer machine with a
-cgroup v2 Docker host (most are) and it should actually complete - that
-combination doesn't hit either limit above. If it doesn't, fix forward
-rather than assuming the harness itself is untrustworthy; file what broke
-against the specific step in `up.sh`.
 
 ## Running it yourself
 

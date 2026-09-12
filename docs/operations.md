@@ -1,12 +1,18 @@
 # Deployment and operations guide
 
 **Status: written against the real chart (`charts/tenantdeck`) and the
-real image (`Dockerfile`).** `helm lint`/`helm template` and a real
-`docker build`/`docker run` have been exercised against exactly what's
-described here (see `docs/implementation-plan.md` Phase 4). Installing
-the chart against a live cluster has **not** been run end-to-end yet -
-see that same doc's "Known blockers" for precisely why, and don't read
-anything below as "verified against a real cluster" until that changes.
+real image (`Dockerfile`).** `helm lint`/`helm template`, a real
+`docker build`/`docker run`, and a real `helm upgrade --install` into a
+live kind cluster (two replicas, Restricted-PSS-labeled namespace, real
+Calico/cert-manager/Capsule/Valkey alongside it) have all been exercised
+against exactly what's described here - the last of these in GitHub
+Actions CI (`verify.yml`'s "Mandatory full-stack E2E" job, 2026-09-12),
+not this repo's own dev sandbox, which still can't run a live cluster at
+all (see `docs/implementation-plan.md` "Known blockers"). That CI
+install used the disposable E2E values (`e2e/manifests/values-e2e.yaml`:
+no Ingress, a loopback-relaxed mock IdP) - a real TLS-fronted,
+production-values install per the example below still hasn't been run
+against a live cluster.
 
 ## Installing/upgrading the chart
 
