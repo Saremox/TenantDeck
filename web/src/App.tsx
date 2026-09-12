@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { fetchSessionStatus, logout, type SessionStatus } from "./api";
-import NamespaceList from "./NamespaceList";
+import NamespaceSelector from "./NamespaceSelector";
+import Workspace from "./Workspace";
 
 type AppState = { kind: "loading" } | { kind: "ready"; status: SessionStatus };
 
 export default function App() {
   const [state, setState] = useState<AppState>({ kind: "loading" });
+  const [namespace, setNamespace] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSessionStatus().then((status) => setState({ kind: "ready", status }));
@@ -42,7 +44,11 @@ export default function App() {
       <button type="button" onClick={handleLogout}>
         Log out
       </button>
-      <NamespaceList />
+      {namespace ? (
+        <Workspace namespace={namespace} onBack={() => setNamespace(null)} />
+      ) : (
+        <NamespaceSelector onSelect={setNamespace} />
+      )}
     </main>
   );
 }

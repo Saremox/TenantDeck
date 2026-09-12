@@ -36,4 +36,29 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByText(/signed in as alice/i)).toBeInTheDocument());
     expect(screen.getByRole("button", { name: /log out/i })).toBeInTheDocument();
   });
+
+  it("shows the namespace selector before a namespace is chosen, then the workspace after", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        if (url === "/auth/session") {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({ authenticated: true, subject: "alice", csrfToken: "token" }),
+          });
+        }
+        if (url === "/api/namespaces") {
+          return Promise.resolve({ ok: true, json: async () => ({ namespaces: [{ name: "tenant-a-dev" }] }) });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({ items: [], resourceQuotas: [], limitRanges: [] }) });
+      }),
+    );
+    render(<App />);
+
+    const namespaceButton = await screen.findByRole("button", { name: "tenant-a-dev" });
+    namespaceButton.click();
+
+    expect(await screen.findByRole("heading", { name: "tenant-a-dev" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /back to namespaces/i })).toBeInTheDocument();
+  });
 });

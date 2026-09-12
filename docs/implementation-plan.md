@@ -5,14 +5,19 @@ Living progress tracker against the execution sequence in
 Update this file whenever a phase advances — do not let it drift from what is
 actually merged.
 
-**Status: Phase 2 (vertical slice) done for what a sandboxed, Docker-less
-session could build and verify.** Real OIDC login → server-side session →
-namespace list → UI works, with the BFF, session store, upstream client,
-router, and a built React frontend all genuinely compiled, unit/integration
-tested, and smoke-tested as a running binary (see "Known blockers" for what
-that smoke test could and couldn't exercise). This is working software now,
-not just decisions — but it has not been validated against a real Capsule
-Proxy or a real IdP; see below.
+**Status: Phase 3 (remaining bounded v1 features) done for what a
+sandboxed, Docker-less session could build and verify.** Every route in
+`docs/route-allowlist.md` is now implemented, tested, and reachable:
+namespace overview (ResourceQuota/LimitRange), Deployments/StatefulSets/
+DaemonSets/Pods/Jobs/CronJobs list+detail, Services/Ingresses/PVC status,
+namespace events, and bounded pod logs with follow mode and client/server
+cancellation — plus a full React frontend (namespace selector, per-view
+navigation, generic resource list/detail, overview, events, and a pod-logs
+viewer with reconnect/cancel) with unit and axe-core accessibility tests.
+`make verify` runs clean. This is working software now, not just decisions
+— but, same as Phase 2, none of it has been validated against a real
+Capsule Proxy or a real IdP; see "Known blockers" below, which is
+unchanged by this phase (it never needed Docker/Kubernetes to build).
 
 ## Phases
 
@@ -36,9 +41,28 @@ Proxy or a real IdP; see below.
       401'd `/api/namespaces` without a session — see "Known blockers" for
       what wasn't exercised this way. `docs/local-development.md` is now
       written for real.
-- [ ] **3. Remaining bounded v1 features** — overview/quotas, workload
-      list/detail views, services/ingresses/PVC status, events, bounded pod
-      logs with follow/cancel, UI states — each with tests alongside it.
+- [x] **3. Remaining bounded v1 features** — implemented: a generic
+      namespaced-resource upstream client (`internal/capsule`'s
+      `ListNamespacedResource`/`GetNamespacedResource`, parameterized by
+      `GroupVersionResource`) and bounded log streaming
+      (`StreamPodLogs`, a dedicated no-`Timeout` `streamClient` bounded
+      instead by `context.WithTimeout`/`io.LimitReader`); `internal/httpapi`
+      handlers for overview, Deployments/StatefulSets/DaemonSets/Pods/Jobs/
+      CronJobs, Services/Ingresses/PersistentVolumeClaims, Events, and
+      `pods/{name}/logs` (follow + cancellation), all behind the shared
+      `validK8sName` path-parameter validator; a React frontend
+      (`NamespaceSelector`, `Workspace` navigation, generic `ResourceList`/
+      `ResourceDetail`, `Overview`, `EventsList`, `PodLogsViewer`) with
+      loading/empty/forbidden/unavailable states per view and a hostile-log/
+      hostile-event/hostile-ingress-host rendering test for each. `make
+      verify` (Go `-race` tests + frontend typecheck/lint/test/build) runs
+      clean; `internal/httpapi` is at 99.0% statement coverage,
+      `internal/capsule` at 94.9%. See `docs/security-test-matrix.md` rows
+      6, 8, 14, 29, 30, 34-37 for the test evidence, including the two rows
+      (8, 37) left `partial` because no test yet sends a wrong-verb request
+      to assert Go's `http.ServeMux` 405s it (every route is `GET`-only by
+      construction, and the upstream client has no write method at all, so
+      there is no write path to reach regardless).
 - [ ] **4. Hardened image/chart + full-stack E2E** — Dockerfile, Helm chart
       per `docs/spec/06-container-and-kubernetes-deployment.md`, the mandatory
       E2E stack per `docs/spec/07-mandatory-automated-testing.md`, then
@@ -138,6 +162,30 @@ if much time has passed** — this list is only as fresh as the date above.
   `web/dist/.gitkeep` is committed (real build output is gitignored) so a
   fresh checkout's `go build` has something to embed before `npm run
   build` has ever run.
+- **ADR-012 — Pod log streaming uses a second `http.Client` with no
+  `Timeout`.** `internal/capsule.Client` already had one `httpClient` with
+  a wall-clock `Timeout` for bounded list/get calls; reusing it for
+  `StreamPodLogs` would silently cut off a `follow=true` stream after that
+  timeout even while it's actively producing data. Added a sibling
+  `streamClient` (same `Transport`, no `Timeout`) used only by
+  `StreamPodLogs`, with the stream instead bounded by
+  `internal/httpapi/logs.go`'s `context.WithTimeout(maxLogStreamDuration)`
+  (10 minutes) and an `io.LimitReader` byte cap (`maxStreamBytes`, 50MiB) —
+  bounding total duration/size without bounding time-between-bytes.
+- **ADR-013 — `ColumnDef<T>.render` is a TS method-shorthand signature,
+  not a `render: (item: T) => ReactNode` property.** `web/src/resourceKinds.tsx`'s
+  `resourceKinds` array is heterogeneous — each entry's `columns` closes
+  over a different concrete resource type (`DeploymentSummary`,
+  `PodSummary`, etc.) but the array itself is typed `ResourceKindConfig[]`
+  (`= ResourceKindConfig<unknown>[]`) so `ResourceList`/`Workspace` can
+  consume any entry generically. With `render` as a property, TypeScript's
+  `strictFunctionTypes` checks parameter types contravariantly and rejects
+  assigning e.g. `(item: PodSummary) => ReactNode` where
+  `(item: unknown) => ReactNode` is expected — the alternative would have
+  been an `any` escape hatch. TypeScript checks method-shorthand signatures
+  bivariantly instead (a deliberate, long-standing exception, not a bug),
+  so declaring `render(item: T): ReactNode` as a method lets the
+  heterogeneous array typecheck with no `any` anywhere in the file.
 - **Deferred to Phase 4**: the E2E mock OIDC provider choice
   (`docs/spec/07-mandatory-automated-testing.md` asks for "a maintained
   mock if suitable") isn't decided here — it's an E2E-harness decision,
@@ -189,3 +237,17 @@ section grows unwieldy) as they're made.
   path from a request parameter — trivially safe (no redirect surface to
   exploit) but also not yet a general "allowlisted post-login destination"
   mechanism. Revisit if/when a real deep-link requirement shows up.
+- **No explicit wrong-verb (non-`GET`) rejection test exists for any
+  Phase 3 route** (`docs/security-test-matrix.md` rows 8, 37). Every route
+  is registered `GET`-only and `internal/capsule.Client` has no write
+  method at all, so there is no write path to reach regardless of what a
+  caller's RBAC allows — but nothing asserts the 405/404 Go's
+  `http.ServeMux` gives a non-`GET` request by construction. Low risk (no
+  code path exists for it to matter), but worth a quick table-driven test
+  alongside `TestRouter_DispatchesPhase3RoutesToTheirHandlers` before
+  calling the allowlist enforcement fully verified.
+- **Phase 3's frontend tests mock `fetch`/`streamPodLogs`, same as
+  Phase 2's** — they prove the UI maps responses/states correctly, not
+  that a real Capsule Proxy answers these shapes the same way. Same
+  Docker-less constraint as above; resolved only once Phase 4's E2E stack
+  exists.

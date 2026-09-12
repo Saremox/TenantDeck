@@ -92,6 +92,54 @@ func TestRouter_DispatchesEachRouteToItsHandler(t *testing.T) {
 	}
 }
 
+// All of Phase 3's new routes - proves each is actually mounted at the
+// path docs/route-allowlist.md specifies (a 401, not a 404, means it's
+// wired; a 404 here would mean the route isn't registered at all).
+func TestRouter_DispatchesPhase3RoutesToTheirHandlers(t *testing.T) {
+	cfg := &config.Config{
+		ExternalURL: "https://tenantdeck.example.com",
+		Insecure:    true,
+		OIDC:        config.OIDCConfig{IssuerURL: newTestOPForRouter(t), ClientID: "client"},
+	}
+	store := newTestStoreForHTTPAPI(t)
+	authHandler, err := auth.NewHandler(context.Background(), cfg, store)
+	if err != nil {
+		t.Fatalf("auth.NewHandler: %v", err)
+	}
+	router := NewRouter(authHandler, store, capsule.NewClient("http://unused.invalid", nil), true, nil)
+
+	paths := []string{
+		"/api/namespaces/ns/overview",
+		"/api/namespaces/ns/deployments",
+		"/api/namespaces/ns/deployments/api",
+		"/api/namespaces/ns/statefulsets",
+		"/api/namespaces/ns/statefulsets/db",
+		"/api/namespaces/ns/daemonsets",
+		"/api/namespaces/ns/daemonsets/agent",
+		"/api/namespaces/ns/pods",
+		"/api/namespaces/ns/pods/web-1",
+		"/api/namespaces/ns/pods/web-1/logs",
+		"/api/namespaces/ns/jobs",
+		"/api/namespaces/ns/jobs/migrate",
+		"/api/namespaces/ns/cronjobs",
+		"/api/namespaces/ns/cronjobs/backup",
+		"/api/namespaces/ns/services",
+		"/api/namespaces/ns/services/web",
+		"/api/namespaces/ns/ingresses",
+		"/api/namespaces/ns/ingresses/web",
+		"/api/namespaces/ns/persistentvolumeclaims",
+		"/api/namespaces/ns/persistentvolumeclaims/data",
+		"/api/namespaces/ns/events",
+	}
+	for _, path := range paths {
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("GET %s status = %d, want %d (route not wired, or requireSession not applied)", path, rec.Code, http.StatusUnauthorized)
+		}
+	}
+}
+
 func TestRouter_ServesFrontendHandlerForUnmatchedPaths(t *testing.T) {
 	cfg := &config.Config{
 		ExternalURL: "https://tenantdeck.example.com",

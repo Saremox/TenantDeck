@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { fetchNamespaces, NamespacesError, type Namespace } from "./api";
+import { ApiError, fetchNamespaces, type Namespace } from "./api";
 
 type LoadState =
   | { kind: "loading" }
@@ -7,10 +7,14 @@ type LoadState =
   | { kind: "forbidden" }
   | { kind: "unavailable" };
 
+interface Props {
+  onSelect: (namespace: string) => void;
+}
+
 // The required empty/loading/forbidden/unavailable-upstream states from
 // docs/spec/02-product-and-scope.md - each one rendered distinctly, not
 // collapsed into a generic "something went wrong."
-export default function NamespaceList() {
+export default function NamespaceSelector({ onSelect }: Props) {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
 
   useEffect(() => {
@@ -21,7 +25,7 @@ export default function NamespaceList() {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        if (err instanceof NamespacesError && err.status === 403) {
+        if (err instanceof ApiError && err.status === 403) {
           setState({ kind: "forbidden" });
         } else {
           setState({ kind: "unavailable" });
@@ -47,11 +51,13 @@ export default function NamespaceList() {
   return (
     <ul aria-label="Namespaces">
       {state.namespaces.map((ns) => (
-        // React escapes text content by default - this is how
-        // docs/spec/04-auth-session-browser-security.md's "no unsafe HTML
-        // rendering of Kubernetes content" requirement is met here: there
-        // is no dangerouslySetInnerHTML anywhere in this codebase.
-        <li key={ns.name}>{ns.name}</li>
+        <li key={ns.name}>
+          {/* React escapes text content by default - no dangerouslySetInnerHTML
+              anywhere in this codebase; see docs/spec/04. */}
+          <button type="button" onClick={() => onSelect(ns.name)}>
+            {ns.name}
+          </button>
+        </li>
       ))}
     </ul>
   );

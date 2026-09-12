@@ -1,17 +1,22 @@
 # Route allowlist
 
-**Status: draft — Phase 1 output, not yet implemented or reviewed against
-running code.** This is the concrete allowlist `docs/spec/10-process-and-definition-of-done.md`
-step 1 calls for: every BFF route, what it's allowed to do upstream, and
-nothing else. The router must reject anything not on this list before it
-reaches the upstream client — see
-`docs/spec/05-upstream-boundary-and-resilience.md`. Update this file in the
-same change that adds or changes a route; `tenantdeck-security-review`
-should treat a route not listed here as a finding.
+**Status: implemented as of Phase 3.** This is the concrete allowlist
+`docs/spec/10-process-and-definition-of-done.md` step 1 calls for: every
+BFF route, what it's allowed to do upstream, and nothing else. The router
+must reject anything not on this list before it reaches the upstream
+client — see `docs/spec/05-upstream-boundary-and-resilience.md`. Update
+this file in the same change that adds or changes a route;
+`tenantdeck-security-review` should treat a route not listed here as a
+finding.
 
 Every upstream entry below is namespace-scoped and **read-only** (`get`/
-`list`/`watch` where noted) unless explicitly marked otherwise. None of
-these exist yet — this is the target shape for Phase 2 onward.
+`list`/`watch` where noted) unless explicitly marked otherwise. Every route
+in this file is wired in `internal/httpapi/router.go` and backed by real
+handlers/tests as of Phase 3 (`internal/httpapi`, `internal/capsule`) — see
+`docs/implementation-plan.md` Phase 3 and `docs/security-test-matrix.md`
+for the test evidence. It has **not** been exercised against a real Capsule
+Proxy (no Docker/Kubernetes in this session's environment — see
+"Known blockers" in `docs/implementation-plan.md`).
 
 ## Session and auth (no Kubernetes upstream call)
 
