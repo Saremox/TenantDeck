@@ -24,10 +24,11 @@ import (
 	"time"
 )
 
-// baseURL assumes `kubectl port-forward svc/tenantdeck 18080:8080 -n
-// tenantdeck-e2e` (or equivalent) is already running - see
-// e2e/run-tests.sh, which `make e2e` calls, for how that's arranged
-// around this package.
+// baseURL defaults to TENANTDECK_E2E_BASE_URL, which e2e/run-tests.sh
+// (what `make e2e` calls) sets to TenantDeck's own in-cluster Service
+// hostname - required, not just convenient, since mockoidc's redirect
+// back to /auth/callback uses that same hostname literally, not
+// whatever address this package's first request happened to use.
 func baseURL() string {
 	if v := os.Getenv("TENANTDECK_E2E_BASE_URL"); v != "" {
 		return v
