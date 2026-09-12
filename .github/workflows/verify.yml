@@ -23,7 +23,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  GO_VERSION: "1.26.0"
+  # Floating minor version, not an exact patch: actions/setup-go resolves
+  # this to the latest 1.26.x release on every run. go.mod's own "go
+  # 1.26.0" is an unrelated minimum-language-version floor, not a pin -
+  # pinning this to an exact patch here is what caused govulncheck to
+  # fail CI on stdlib CVEs already fixed in later 1.26.x patches (the
+  # Dockerfile's golang:1.26-alpine@<pinned digest> was never affected -
+  # that digest already resolves to a current patch, since it's the tag
+  # being pinned-by-digest, not an exact Go version string).
+  GO_VERSION: "1.26"
   NODE_VERSION: "22"
 
 jobs:

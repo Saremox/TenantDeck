@@ -17,7 +17,10 @@ permissions:
   contents: read
 
 env:
-  GO_VERSION: "1.26.0"
+  # Floating minor version - see verify.yml's matching comment. Only used
+  # here for `helm` itself (go install); the shipped image's actual Go
+  # toolchain comes from the Dockerfile's own pinned-by-digest base image.
+  GO_VERSION: "1.26"
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
