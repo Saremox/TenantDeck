@@ -3,6 +3,7 @@ module github.com/Saremox/TenantDeck
 go 1.26.0
 
 require (
+	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/zitadel/oidc/v3 v3.49.6
 	golang.org/x/oauth2 v0.37.0
@@ -10,7 +11,6 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
